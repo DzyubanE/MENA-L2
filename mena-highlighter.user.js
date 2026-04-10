@@ -201,11 +201,15 @@
 
     const fullMap = new Map();
 
+    function splitLinks(text) {
+      return text.split('\n').map(s => s.trim()).filter(Boolean);
+    }
+
     // Обычные столбцы — считаем всю ячейку целиком
     rows.forEach(row => {
       row.querySelectorAll('td').forEach(td => {
         if (shouldSkip(td)) return;
-        if (headerLabel(td.cellIndex).includes(FILE_SUBSTRING)) return; // файловые отдельно
+        if (headerLabel(td.cellIndex).includes(FILE_SUBSTRING)) return;
         const span = getSpan(td);
         if (!span) return;
         const text = normalize(spanText.get(span) || '');
@@ -214,21 +218,27 @@
     });
 
     // Файловые столбцы — считаем каждую ссылку отдельно
-    // Ссылка = непустая строка, разделитель — перенос строки
-    function splitLinks(text) {
-      return text.split('\n').map(s => s.trim()).filter(Boolean);
-    }
-
     rows.forEach(row => {
       row.querySelectorAll('td').forEach(td => {
         if (!headerLabel(td.cellIndex).includes(FILE_SUBSTRING)) return;
         const span = getSpan(td);
         if (!span) return;
-        const links = splitLinks(spanText.get(span) || '');
-        links.forEach(link => {
-          const key = normalize(link);
-          if (key) fullMap.set(key, (fullMap.get(key) || 0) + 1);
-        });
+        const anchors = Array.from(span.querySelectorAll('a'));
+        if (anchors.length > 0) {
+          // Регистрируем по тексту и href каждой ссылки
+          anchors.forEach(a => {
+            const t = normalize(a.innerText || a.textContent || '');
+            const h = normalize(a.getAttribute('href') || '');
+            if (t) fullMap.set(t, (fullMap.get(t) || 0) + 1);
+            if (h) fullMap.set(h, (fullMap.get(h) || 0) + 1);
+          });
+        } else {
+          // Нет <a> — регистрируем по строкам текста
+          splitLinks(spanText.get(span) || '').forEach(link => {
+            const key = normalize(link);
+            if (key) fullMap.set(key, (fullMap.get(key) || 0) + 1);
+          });
+        }
       });
     });
 
@@ -249,29 +259,45 @@
       });
     });
 
-    // Применяем Full — файловые столбцы (подсвечиваем каждую ссылку отдельно)
+    // Применяем Full — файловые столбцы
     rows.forEach(row => {
       row.querySelectorAll('td').forEach(td => {
         if (!headerLabel(td.cellIndex).includes(FILE_SUBSTRING)) return;
         const span = getSpan(td);
         if (!span) return;
         const plain = spanText.get(span) || '';
-        const links = splitLinks(plain);
+        const anchors = Array.from(span.querySelectorAll('a'));
 
-        const matchedLinks = links.filter(link => (fullMap.get(normalize(link)) || 0) > 1);
-        if (!matchedLinks.length) return;
+        if (anchors.length > 0) {
+          // Есть гиперссылки — стилизуем <a> не трогая DOM
+          let anyMatch = false;
+          anchors.forEach(a => {
+            const t = normalize(a.innerText || a.textContent || '');
+            const h = normalize(a.getAttribute('href') || '');
+            const key = (fullMap.get(t) || 0) > 1 ? t
+                      : (fullMap.get(h) || 0) > 1 ? h
+                      : null;
+            if (!key) return;
+            anyMatch = true;
+            const c = getFullColor(key);
+            a.style.cssText = `background:${c.bg};color:${c.text};border:.5px solid ${c.border};border-radius:4px;padding:1px 5px;font-weight:500;`;
+          });
+          if (anyMatch) addBadge(td, 'full', 'Full', plain);
 
-        // Перестраиваем innerHTML span — совпадающие ссылки подсвечиваем
-        let html = plain;
-        matchedLinks.forEach(link => {
-          const c = getFullColor(normalize(link));
-          const pill = `<mark class="b-mark" style="background:${c.bg};color:${c.text};border:.5px solid ${c.border};border-radius:4px;padding:1px 5px;font-weight:500;pointer-events:none;display:inline;">${link}</mark>`;
-          // Экранируем спецсимволы для замены в строке
-          html = html.split(link).join(pill);
-        });
-
-        span.innerHTML = html;
-        addBadge(td, 'full', 'Full', plain);
+        } else {
+          // Нет гиперссылок — заменяем текст через mark
+          const links = splitLinks(plain);
+          const matchedLinks = links.filter(link => (fullMap.get(normalize(link)) || 0) > 1);
+          if (!matchedLinks.length) return;
+          let html = plain;
+          matchedLinks.forEach(link => {
+            const c = getFullColor(normalize(link));
+            const pill = `<mark class="b-mark" style="background:${c.bg};color:${c.text};border:.5px solid ${c.border};border-radius:4px;padding:1px 5px;font-weight:500;pointer-events:none;display:inline;">${link}</mark>`;
+            html = html.split(link).join(pill);
+          });
+          span.innerHTML = html;
+          addBadge(td, 'full', 'Full', plain);
+        }
       });
     });
 
