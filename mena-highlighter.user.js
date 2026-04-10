@@ -20,7 +20,8 @@
   const FULL_ONLY_SUBSTRINGS    = ['transaction id', 'file', 'amount'];
   const PART_ALLOWED_SUBSTRINGS = ['unique transfer number', 'inside comment'];
   const NO_COPY_SUBSTRINGS      = ['actions', 'ticket history'];
-
+  const FILE_SUBSTRING = 'file';
+        
   if (!document.getElementById('b-copy-style')) {
     const style = document.createElement('style');
     style.id = 'b-copy-style';
@@ -196,12 +197,15 @@
       });
     });
 
-    // ── Шаг 2: FULL ───────────────────────────────────────────────────────
+// ── Шаг 2: FULL ───────────────────────────────────────────────────────
 
     const fullMap = new Map();
+
+    // Обычные столбцы — считаем всю ячейку целиком
     rows.forEach(row => {
       row.querySelectorAll('td').forEach(td => {
         if (shouldSkip(td)) return;
+        if (headerLabel(td.cellIndex).includes(FILE_SUBSTRING)) return; // файловые отдельно
         const span = getSpan(td);
         if (!span) return;
         const text = normalize(spanText.get(span) || '');
@@ -209,9 +213,30 @@
       });
     });
 
+    // Файловые столбцы — считаем каждую ссылку отдельно
+    // Ссылка = непустая строка, разделитель — перенос строки
+    function splitLinks(text) {
+      return text.split('\n').map(s => s.trim()).filter(Boolean);
+    }
+
+    rows.forEach(row => {
+      row.querySelectorAll('td').forEach(td => {
+        if (!headerLabel(td.cellIndex).includes(FILE_SUBSTRING)) return;
+        const span = getSpan(td);
+        if (!span) return;
+        const links = splitLinks(spanText.get(span) || '');
+        links.forEach(link => {
+          const key = normalize(link);
+          if (key) fullMap.set(key, (fullMap.get(key) || 0) + 1);
+        });
+      });
+    });
+
+    // Применяем Full — обычные столбцы
     rows.forEach(row => {
       row.querySelectorAll('td').forEach(td => {
         if (shouldSkip(td)) return;
+        if (headerLabel(td.cellIndex).includes(FILE_SUBSTRING)) return;
         const span = getSpan(td);
         if (!span) return;
         const text  = normalize(spanText.get(span) || '');
@@ -221,6 +246,32 @@
           span.style.cssText = `background:${c.bg};color:${c.text};border:.5px solid ${c.border};padding:2px 6px;border-radius:4px;font-weight:500;display:inline-block;cursor:text;`;
           addBadge(td, 'full', 'Full', plain);
         }
+      });
+    });
+
+    // Применяем Full — файловые столбцы (подсвечиваем каждую ссылку отдельно)
+    rows.forEach(row => {
+      row.querySelectorAll('td').forEach(td => {
+        if (!headerLabel(td.cellIndex).includes(FILE_SUBSTRING)) return;
+        const span = getSpan(td);
+        if (!span) return;
+        const plain = spanText.get(span) || '';
+        const links = splitLinks(plain);
+
+        const matchedLinks = links.filter(link => (fullMap.get(normalize(link)) || 0) > 1);
+        if (!matchedLinks.length) return;
+
+        // Перестраиваем innerHTML span — совпадающие ссылки подсвечиваем
+        let html = plain;
+        matchedLinks.forEach(link => {
+          const c = getFullColor(normalize(link));
+          const pill = `<mark class="b-mark" style="background:${c.bg};color:${c.text};border:.5px solid ${c.border};border-radius:4px;padding:1px 5px;font-weight:500;pointer-events:none;display:inline;">${link}</mark>`;
+          // Экранируем спецсимволы для замены в строке
+          html = html.split(link).join(pill);
+        });
+
+        span.innerHTML = html;
+        addBadge(td, 'full', 'Full', plain);
       });
     });
 
