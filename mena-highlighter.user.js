@@ -281,7 +281,7 @@
             if (!key) return;
             anyMatch = true;
             const c = getFullColor(key);
-            a.style.cssText = `background:${c.bg};color:${c.text};border:.5px solid ${c.border};border-radius:4px;padding:1px 5px;font-weight:500;`;
+            a.style.cssText = `background:${c.bg};color:${c.text};border:.5px solid ${c.border};border-radius:4px;padding:1px 5px;font-weight:500;display:block;margin-bottom:2px;`;
           });
           if (anyMatch) addBadge(td, 'full', 'Full', plain);
 
