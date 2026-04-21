@@ -1,7 +1,9 @@
 // ==UserScript==
 // @name         Limit's Finder Team B
 // @namespace    team-bestie
-// @version      1.0
+// @version      1.0.1
+// @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/limits-finder.user.js
+// @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/limits-finder.user.js
 // @author       You
 // @description  Выделение текста в Query Subagent → инлайн-поиск по таблицам Confluence
 // @match        https://th-managment.com/en/admin/backoffice/paymentsupport*
