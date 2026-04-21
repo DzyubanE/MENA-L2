@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Ticket History — Admin Username Finder Team B
-// @version      1.0.1
+// @name         Ticket History — Admin Username Finder Team B BETA
+// @version      1.0.2
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/admins-finder.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/admins-finder.user.js
 // @author       You
