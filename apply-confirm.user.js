@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Apply Button Confirmation
+// @name         Edit Helper Team B
 // @namespace    http://tampermonkey.net/
 // @version      1.0
 // @description  Двойное подтверждение + шаблоны комментариев
