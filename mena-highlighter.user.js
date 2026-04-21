@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Duplicate Highligher Team B
+// @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
 // @version      1.0.1
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
