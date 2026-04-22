@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Edit Helper Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.0.2
+// @version      1.0.3
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @description  Двойное подтверждение + шаблоны комментариев
@@ -706,12 +706,17 @@
     overlay.appendChild(modal); document.body.appendChild(overlay);
 
     const txnMissing = (!txnId || txnId === '') && status && STATUSES_REQUIRE_TXN.includes(status);
+    const txnPresent = txnId && txnId !== '' && status && STATUSES_REQUIRE_TXN.includes(status);
 
     const h3 = mk('h3'); h3.textContent = 'Подтверждение действия';
     modal.appendChild(h3);
 
     const infoBox = mk('div', 'info-box');
-    infoBox.innerHTML = `Статус: <strong>${status || '[не выбран]'}</strong>`;
+    if (txnPresent) {
+      infoBox.innerHTML = `Отправить в Статус: <strong>${status}</strong> с Transaction ID — <strong>${txnId}</strong>`;
+    } else {
+      infoBox.innerHTML = `Статус: <strong>${status || '[не выбран]'}</strong>`;
+    }
     modal.appendChild(infoBox);
 
     if (txnMissing) {
