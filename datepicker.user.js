@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         Auto Datepicker for filters Team B BETA
-// @version      1.0.4
+// @version      1.0.5
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/datepicker.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/datepicker.user.js
 // @author       You
 // @match        https://th-managment.com/en/admin/backoffice/paymentsupport*
 // @match        https://my-managment.com/en/admin/backoffice/paymentsupport*
 // @match        https://managment.io/en/admin/backoffice/paymentsupport*
-// @icon         https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/datepicker.svg
+// @icon         https://raw.githubusercontent.com/DzyubanE/MENA-L2/refs/heads/main/datepicker.png
 // @grant        none
 // ==/UserScript==
 
