@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.0.3
+// @version      1.0.4
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -9,7 +9,7 @@
 // @match        https://th-managment.com/en/admin/backoffice/paymentsupport
 // @match        https://my-managment.com/en/admin/backoffice/paymentsupport
 // @match        https://managment.io//en/admin/backoffice/paymentsupport
-// @icon         https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.svg
+// @icon         https://raw.githubusercontent.com/DzyubanE/MENA-L2/refs/heads/main/mena-highlighter.png
 // @grant        none
 // ==/UserScript==
 
