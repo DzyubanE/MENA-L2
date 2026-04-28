@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.1.3
+// @version      1.1.4
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -65,7 +65,7 @@
     
 // ── Превью файлов при наведении ───────────────────────────────────────
 
- (function initFilePreview() {
+(function initFilePreview() {
     if (document.getElementById('b-preview-style')) return;
 
     const style = document.createElement('style');
@@ -79,13 +79,18 @@
         border-radius: 10px;
         box-shadow: 0 8px 24px rgba(0,0,0,0.18);
         overflow: hidden;
-        pointer-events: auto;
+        pointer-events: none;
+        display: none;
         opacity: 0;
         transition: opacity .15s;
         max-width: 400px;
         width: max-content;
       }
-      #b-preview-popup.visible { opacity: 1; }
+      #b-preview-popup.visible {
+        display: block;
+        opacity: 1;
+        pointer-events: auto;
+      }
       #b-preview-popup img {
         display: block;
         max-width: 400px;
@@ -257,8 +262,14 @@
       lightbox.classList.add('open');
     }
 
-    arrowPrev.addEventListener('click', e => { e.stopPropagation(); if (lbIndex > 0) { lbIndex--; updateLightbox(); } });
-    arrowNext.addEventListener('click', e => { e.stopPropagation(); if (lbIndex < lbUrls.length - 1) { lbIndex++; updateLightbox(); } });
+    arrowPrev.addEventListener('click', e => {
+      e.stopPropagation();
+      if (lbIndex > 0) { lbIndex--; updateLightbox(); }
+    });
+    arrowNext.addEventListener('click', e => {
+      e.stopPropagation();
+      if (lbIndex < lbUrls.length - 1) { lbIndex++; updateLightbox(); }
+    });
     lightboxClose.addEventListener('click', e => { e.stopPropagation(); lightbox.classList.remove('open'); });
     lightbox.addEventListener('click', e => { if (e.target === lightbox) lightbox.classList.remove('open'); });
     document.addEventListener('keydown', e => {
@@ -301,7 +312,7 @@
     const fullscreenIcon = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
     const newTabIcon     = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
     const pdfIcon        = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#E24B4A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>`;
-    const videoIcon      = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>`;
+    const videoIcon      = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
 
     function makeActions(anchor, previewUrl, withFullscreen) {
       const bar = document.createElement('div');
@@ -339,7 +350,6 @@
       return wrap;
     }
 
-    // Счётчик загрузок — чтобы отменять устаревшие
     let loadGeneration = 0;
 
     function buildPopup(anchor) {
@@ -354,14 +364,12 @@
         loading.textContent = 'Loading...';
         popup.appendChild(loading);
 
-        // Запоминаем поколение этой загрузки
         const myGeneration = ++loadGeneration;
-
         const img = new Image();
         img.onload = () => {
-          // Если пока грузилось — навели на другую ссылку, игнорируем
           if (myGeneration !== loadGeneration) return;
           loading.remove();
+          img.style.cssText = 'display:block;max-width:400px;max-height:calc(100vh - 120px);width:auto;height:auto;object-fit:contain;background:#F7F8FA;';
           popup.appendChild(img);
           positionPopup();
         };
@@ -417,7 +425,6 @@
 
       if (href !== currentHref) {
         currentHref = href;
-        // Инкрементируем поколение — все текущие загрузки станут устаревшими
         loadGeneration++;
         buildPopup(anchor);
         positionPopup();
@@ -429,10 +436,14 @@
     function hidePopup() {
       hideTimer = setTimeout(() => {
         popup.classList.remove('visible');
-        // Инкрементируем чтобы отменить любую текущую загрузку
         loadGeneration++;
         currentHref   = null;
         currentAnchor = null;
+        setTimeout(() => {
+          if (!popup.classList.contains('visible')) {
+            popup.innerHTML = '';
+          }
+        }, 150);
       }, 200);
     }
 
