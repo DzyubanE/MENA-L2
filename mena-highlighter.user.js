@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.0.9
+// @version      1.1.0
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -71,7 +71,7 @@
     const style = document.createElement('style');
     style.id = 'b-preview-style';
     style.textContent = `
-      #b-preview-popup {
+     #b-preview-popup {
         position: fixed;
         z-index: 99999;
         background: #fff;
@@ -82,23 +82,22 @@
         pointer-events: auto;
         opacity: 0;
         transition: opacity .15s;
-        max-width: 340px;
-        min-width: 180px;
+        width: 400px;
       }
       #b-preview-popup.visible { opacity: 1; }
       #b-preview-popup img {
         display: block;
-        max-width: 340px;
-        max-height: 260px;
+        width: 400px;
+        height: auto;
         object-fit: contain;
         background: #F7F8FA;
       }
-      .b-preview-actions {
+     .b-preview-actions {
         display: flex;
         gap: 6px;
         padding: 6px 8px;
         background: #F7F8FA;
-        border-top: .5px solid #DFE1E6;
+        border-bottom: .5px solid #DFE1E6;
       }
       .b-preview-btn {
         display: inline-flex;
@@ -263,6 +262,9 @@
       const { previewUrl, filePath } = resolveFileUrl(anchor);
 
       if (isImage(filePath)) {
+        // Кнопки сверху сразу
+        popup.appendChild(makeActions(previewUrl, true));
+
         const loading = document.createElement('div');
         loading.className   = 'b-preview-loading';
         loading.textContent = 'Loading...';
@@ -270,31 +272,26 @@
 
         const img = document.createElement('img');
         img.onload = () => {
-          popup.innerHTML = '';
+          loading.remove();
           popup.appendChild(img);
-          popup.appendChild(makeActions(previewUrl, true));
           positionPopup();
         };
         img.onerror = () => {
-          popup.innerHTML = '';
-          const err = document.createElement('div');
-          err.className   = 'b-preview-loading';
-          err.textContent = 'Cannot load image';
-          popup.appendChild(err);
-          popup.appendChild(makeActions(previewUrl, false));
+          loading.textContent = 'Cannot load image';
         };
         img.src = previewUrl;
 
       } else if (isPdf(filePath)) {
+        popup.appendChild(makeActions(previewUrl, false));
+
         const wrap = document.createElement('div');
-        wrap.className  = 'b-preview-pdf-wrap';
-        wrap.innerHTML  = pdfIcon;
+        wrap.className = 'b-preview-pdf-wrap';
+        wrap.innerHTML = pdfIcon;
         const name = document.createElement('span');
-        name.className  = 'b-preview-pdf-name';
+        name.className   = 'b-preview-pdf-name';
         name.textContent = getFileName(filePath);
         wrap.appendChild(name);
         popup.appendChild(wrap);
-        popup.appendChild(makeActions(previewUrl, false));
       }
     }
 
