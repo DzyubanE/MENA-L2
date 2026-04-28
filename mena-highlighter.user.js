@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.1.2
+// @version      1.1.3
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -122,13 +122,13 @@
       .b-preview-btn:last-child { border-right: none; }
       .b-preview-btn:hover { background: #1fa8b8; }
       .b-preview-btn svg { flex-shrink: 0; pointer-events: none; }
-      .b-preview-pdf-wrap {
+      .b-preview-file-wrap {
         display: flex;
         align-items: center;
         gap: 10px;
         padding: 14px 16px;
       }
-      .b-preview-pdf-name {
+      .b-preview-file-name {
         font-size: 12px;
         color: #42526E;
         font-weight: 500;
@@ -214,28 +214,22 @@
 
     // ── Lightbox ──────────────────────────────────────────────────────────
 
-    const lightbox = document.createElement('div');
-    lightbox.id = 'b-lightbox';
-
+    const lightbox      = document.createElement('div');
+    lightbox.id         = 'b-lightbox';
     const lightboxClose = document.createElement('button');
-    lightboxClose.id = 'b-lightbox-close';
+    lightboxClose.id    = 'b-lightbox-close';
     lightboxClose.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
-
-    const imgWrap = document.createElement('div');
-    imgWrap.id = 'b-lightbox-img-wrap';
-
-    const arrowPrev = document.createElement('button');
+    const imgWrap       = document.createElement('div');
+    imgWrap.id          = 'b-lightbox-img-wrap';
+    const arrowPrev     = document.createElement('button');
     arrowPrev.className = 'b-lightbox-arrow';
     arrowPrev.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`;
-
-    const lightboxImg = document.createElement('img');
-
-    const arrowNext = document.createElement('button');
+    const lightboxImg   = document.createElement('img');
+    const arrowNext     = document.createElement('button');
     arrowNext.className = 'b-lightbox-arrow';
     arrowNext.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
-
     const lightboxCounter = document.createElement('div');
-    lightboxCounter.id = 'b-lightbox-counter';
+    lightboxCounter.id  = 'b-lightbox-counter';
 
     imgWrap.appendChild(arrowPrev);
     imgWrap.appendChild(lightboxImg);
@@ -245,8 +239,7 @@
     lightbox.appendChild(lightboxCounter);
     document.body.appendChild(lightbox);
 
-    let lbUrls  = [];
-    let lbIndex = 0;
+    let lbUrls = [], lbIndex = 0;
 
     function updateLightbox() {
       lightboxImg.src = lbUrls[lbIndex];
@@ -278,11 +271,13 @@
     // ── Утилиты ───────────────────────────────────────────────────────────
 
     const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
+    const VIDEO_EXTS = ['mp4', 'webm', 'mov', 'avi'];
 
     function getExt(path)      { return (path.split('?')[0].split('.').pop() || '').toLowerCase(); }
     function getFileName(path) { return decodeURIComponent(path.split('?')[0].split('/').pop() || path); }
     function isImage(path)     { return IMAGE_EXTS.includes(getExt(path)); }
     function isPdf(path)       { return getExt(path) === 'pdf'; }
+    function isVideo(path)     { return VIDEO_EXTS.includes(getExt(path)); }
 
     function resolveFileUrl(anchor) {
       const href = anchor.getAttribute('href') || '';
@@ -294,7 +289,6 @@
       return { previewUrl: href, filePath: href };
     }
 
-    // Ищем все картинки в той же ячейке — включая вложенные span и br
     function getCellImageUrls(anchor) {
       const td = anchor.closest('td');
       if (!td) return [];
@@ -306,12 +300,12 @@
 
     const fullscreenIcon = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
     const newTabIcon     = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
-    const pdfIcon        = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#E24B4A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>`;
+    const pdfIcon        = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#E24B4A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>`;
+    const videoIcon      = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>`;
 
     function makeActions(anchor, previewUrl, withFullscreen) {
       const bar = document.createElement('div');
       bar.className = 'b-preview-actions';
-
       if (withFullscreen) {
         const btnFull = document.createElement('button');
         btnFull.className = 'b-preview-btn';
@@ -324,7 +318,6 @@
         });
         bar.appendChild(btnFull);
       }
-
       const btnTab = document.createElement('a');
       btnTab.className = 'b-preview-btn';
       btnTab.href      = previewUrl;
@@ -332,9 +325,22 @@
       btnTab.rel       = 'noopener noreferrer';
       btnTab.innerHTML = `${newTabIcon} Open in new tab`;
       bar.appendChild(btnTab);
-
       return bar;
     }
+
+    function makeFileRow(icon, fileName) {
+      const wrap = document.createElement('div');
+      wrap.className = 'b-preview-file-wrap';
+      wrap.innerHTML = icon;
+      const name = document.createElement('span');
+      name.className   = 'b-preview-file-name';
+      name.textContent = fileName;
+      wrap.appendChild(name);
+      return wrap;
+    }
+
+    // Счётчик загрузок — чтобы отменять устаревшие
+    let loadGeneration = 0;
 
     function buildPopup(anchor) {
       popup.innerHTML = '';
@@ -348,21 +354,30 @@
         loading.textContent = 'Loading...';
         popup.appendChild(loading);
 
-        const img = document.createElement('img');
-        img.onload = () => { loading.remove(); popup.appendChild(img); positionPopup(); };
-        img.onerror = () => { loading.textContent = 'Cannot load image'; };
+        // Запоминаем поколение этой загрузки
+        const myGeneration = ++loadGeneration;
+
+        const img = new Image();
+        img.onload = () => {
+          // Если пока грузилось — навели на другую ссылку, игнорируем
+          if (myGeneration !== loadGeneration) return;
+          loading.remove();
+          popup.appendChild(img);
+          positionPopup();
+        };
+        img.onerror = () => {
+          if (myGeneration !== loadGeneration) return;
+          loading.textContent = 'Cannot load image';
+        };
         img.src = previewUrl;
 
       } else if (isPdf(filePath)) {
         popup.appendChild(makeActions(anchor, previewUrl, false));
-        const wrap = document.createElement('div');
-        wrap.className = 'b-preview-pdf-wrap';
-        wrap.innerHTML = pdfIcon;
-        const name = document.createElement('span');
-        name.className   = 'b-preview-pdf-name';
-        name.textContent = getFileName(filePath);
-        wrap.appendChild(name);
-        popup.appendChild(wrap);
+        popup.appendChild(makeFileRow(pdfIcon, getFileName(filePath)));
+
+      } else if (isVideo(filePath)) {
+        popup.appendChild(makeActions(anchor, previewUrl, false));
+        popup.appendChild(makeFileRow(videoIcon, getFileName(filePath)));
       }
     }
 
@@ -382,11 +397,8 @@
       let left = rect.right + margin;
       let top  = rect.top;
 
-      // Не выходит за правый край — уходим влево
       if (left + popW > vpW - margin) left = rect.left - popW - margin;
       if (left < margin) left = margin;
-
-      // Не выходит за нижний край — прижимаем снизу с отступом
       if (top + popH > vpH - margin) top = vpH - popH - margin;
       if (top < margin) top = margin;
 
@@ -398,13 +410,15 @@
       const href = anchor.getAttribute('href') || '';
       if (!href) return;
       const { filePath } = resolveFileUrl(anchor);
-      if (!isImage(filePath) && !isPdf(filePath)) return;
+      if (!isImage(filePath) && !isPdf(filePath) && !isVideo(filePath)) return;
 
       clearTimeout(hideTimer);
       currentAnchor = anchor;
 
       if (href !== currentHref) {
         currentHref = href;
+        // Инкрементируем поколение — все текущие загрузки станут устаревшими
+        loadGeneration++;
         buildPopup(anchor);
         positionPopup();
       }
@@ -415,6 +429,8 @@
     function hidePopup() {
       hideTimer = setTimeout(() => {
         popup.classList.remove('visible');
+        // Инкрементируем чтобы отменить любую текущую загрузку
+        loadGeneration++;
         currentHref   = null;
         currentAnchor = null;
       }, 200);
@@ -433,7 +449,6 @@
     });
 
   })();
-
   // ── Тумблер ────────────────────────────────────────────────────────────
 
   function ensureToggle() {
