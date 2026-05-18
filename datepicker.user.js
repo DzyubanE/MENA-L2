@@ -11,6 +11,17 @@
 // @grant        none
 // ==/UserScript==
 
+// ==UserScript==
+// @name         Datepicker Auto Range on Saved Filter Apply
+// @version      2026-05-18
+// @author       You
+// @match        https://th-managment.com/en/admin/backoffice/paymentsupport*
+// @match        https://my-managment.com/en/admin/backoffice/paymentsupport*
+// @match        https://managment.io/en/admin/backoffice/paymentsupport*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=th-managment.com
+// @grant        none
+// ==/UserScript==
+
 (function () {
   'use strict';
 
@@ -32,7 +43,6 @@
 
     if (isMyTicketsSwitchOn()) {
       const hour = now.getHours();
-
       const end = new Date(now);
       end.setHours(23, 59, 0, 0);
 
@@ -61,7 +71,6 @@
   }
 
   function findDateInput() {
-    // Пробуем все возможные селекторы
     return (
       document.querySelector('.mx-datepicker-range .mx-input') ||
       document.querySelector('.mx-datepicker .mx-input') ||
@@ -89,9 +98,20 @@
     return true;
   }
 
+  function isApplyButton(el) {
+    // Кнопка Apply в модалке: type="submit" + btn-success + текст "Apply"
+    // Не type="submit" — fallback по тексту внутри модалки
+    if (!el) return false;
+    const isSuccess = el.classList.contains('btn-success');
+    const isSubmit = el.type === 'submit';
+    const textMatch = el.textContent.trim() === 'Apply';
+    const inModal = !!el.closest('.modal_content, .wrap-white');
+    return isSuccess && (isSubmit || textMatch) && inModal;
+  }
+
   document.addEventListener('click', (e) => {
-    const applyBtn = e.target.closest('[data-v-3b29a2a9] .btn-success');
-    if (!applyBtn) return;
+    const btn = e.target.closest('button');
+    if (!isApplyButton(btn)) return;
 
     console.log('[DateRange] Apply clicked');
 
@@ -105,3 +125,4 @@
     }, 300);
   }, true);
 
+})();
