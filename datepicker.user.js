@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Auto Datepicker for filters Team B BETA
-// @version      1.0.6
+// @version      1.0.7
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/datepicker.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/datepicker.user.js
 // @author       You
