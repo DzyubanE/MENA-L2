@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Auto Datepicker for filters Team B BETA
-// @version      1.0.5
+// @version      1.0.6
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/datepicker.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/datepicker.user.js
 // @author       You
@@ -37,12 +37,10 @@
       end.setHours(23, 59, 0, 0);
 
       if (hour >= 9) {
-        // 09:00–23:59 → только сегодня
         const start = new Date(now);
         start.setHours(0, 0, 0, 0);
         return `${fmt(start)} ~ ${fmt(end)}`;
       } else {
-        // 00:00–08:59 → вчера + сегодня
         const start = new Date(now);
         start.setDate(start.getDate() - 1);
         start.setHours(0, 0, 0, 0);
@@ -50,7 +48,7 @@
       }
     }
 
-    // Стандартный режим: год назад + 1 день ~ сегодня 23:59
+    // Стандартный режим
     const end = new Date(now);
     end.setHours(23, 59, 0, 0);
 
@@ -62,6 +60,16 @@
     return `${fmt(start)} ~ ${fmt(end)}`;
   }
 
+  function findDateInput() {
+    // Пробуем все возможные селекторы
+    return (
+      document.querySelector('.mx-datepicker-range .mx-input') ||
+      document.querySelector('.mx-datepicker .mx-input') ||
+      document.querySelector('input.mx-input[name="date"]') ||
+      document.querySelector('input.mx-input')
+    );
+  }
+
   function setDatepickerValue(input, value) {
     const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     nativeSetter.call(input, value);
@@ -70,15 +78,22 @@
   }
 
   function trySetDate() {
-    const input = document.querySelector('.mx-datepicker-range .mx-input');
-    if (!input) return false;
-    setDatepickerValue(input, getDateRange());
+    const input = findDateInput();
+    if (!input) {
+      console.warn('[DateRange] input not found');
+      return false;
+    }
+    const value = getDateRange();
+    console.log('[DateRange] setting:', value, '| switch ON:', isMyTicketsSwitchOn());
+    setDatepickerValue(input, value);
     return true;
   }
 
   document.addEventListener('click', (e) => {
     const applyBtn = e.target.closest('[data-v-3b29a2a9] .btn-success');
     if (!applyBtn) return;
+
+    console.log('[DateRange] Apply clicked');
 
     setTimeout(() => {
       if (!trySetDate()) {
@@ -90,4 +105,3 @@
     }, 300);
   }, true);
 
-})();
