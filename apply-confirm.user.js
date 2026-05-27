@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Edit Helper Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.0.5
+// @version      1.0.6
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @description  Двойное подтверждение + шаблоны комментариев
@@ -16,14 +16,11 @@
 (function () {
   'use strict';
 
-  const STATUSES_REQUIRE_TXN = [
-    '219 Credited (M)',
-    '221 Credited (Fraud) (M)',
-    '225 Approved by agent (M)',
-    '231 Adjusted the amount (Deposit) (M)'
-  ];
+  // Статусы требующие Transaction ID — матчим по числовому префиксу
+  const STATUSES_REQUIRE_TXN_IDS = ['219', '60', '221', '61', '225', '63', '231', '66'];
 
-  const STATUSES_WITH_COMMENTS = ['209', '207', '210', '216', '243'];
+  // Статусы с шаблонными комментариями — матчим по числовому префиксу
+  const STATUSES_WITH_COMMENTS_IDS = ['209', '55', '207', '210', '90', '216', '98', '243', '72', '240', '97'];
 
   const COMMENTS_209 = [
     { label: 'Корректировка даты', full: 'Sir, please check the date and time. They have been corrected.', hasInput: false },
@@ -38,7 +35,25 @@
     { label: 'Выше лимита', full: 'Sir, the amount is above the limit, please refund the money to the user and provide a screenshot.' }
   ];
 
+  const COMMENTS_240 = [
+    { label: 'Ожидание ответа из Передачи смены', full: 'waiting for agent' },
+    { label: 'Ожидание ответа от старших / передача старшим', full: 'waiting for senior' },
+    { label: 'Передача старшим для создания транзакции', full: 'waiting for NR' }
+  ];
+
   const COMMENT_243_TEMPLATE = (val) => `Credited to another account - ${val || '(номер транзакции)'}`;
+
+  // Извлечь числовой префикс из строки статуса, например "209 Sent for processing (M)" -> "209"
+  function statusId(status) {
+    if (!status) return null;
+    const m = status.match(/^(\d+)/);
+    return m ? m[1] : null;
+  }
+
+  function statusMatches(status, ids) {
+    const id = statusId(status);
+    return id ? ids.includes(id) : false;
+  }
 
   function withPrefix(text) {
     if (!text) return text;
@@ -288,6 +303,7 @@
     #__apply-modal .info-box {
       padding: 9px 12px; background: #f6f7f8; border: 1px solid #dbdfe6;
       border-radius: 6px; font-size: 12px; color: #4f5b71; margin-bottom: 14px;
+      line-height: 1.6;
     }
     #__apply-modal .info-box strong { color: #3b4354; }
     #__apply-modal .warn-box {
@@ -372,7 +388,7 @@
     textarea.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
- function isTargetApplyButton(el) {
+  function isTargetApplyButton(el) {
     const btn = el.closest('button');
     if (!btn) return null;
     const label = btn.querySelector('.btn-label');
@@ -382,14 +398,10 @@
     if (!inputGroup || inputGroup.classList.contains('btn-block')) return null;
     const filterBlock = inputGroup.parentElement;
     if (!filterBlock || !filterBlock.classList.contains('filter') || !filterBlock.classList.contains('btn-block')) return null;
-
-    // Исключаем попапы не связанные с тикетами
     const modalContent = btn.closest('.modal_content');
     if (!modalContent) return null;
     const modalTitle = modalContent.querySelector('.title');
-    if (!modalTitle) return null;
-    if (!modalTitle.textContent.trim().startsWith('Change ticket')) return null;
-
+    if (!modalTitle || !modalTitle.textContent.trim().startsWith('Change ticket')) return null;
     return btn;
   }
 
@@ -416,7 +428,6 @@
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 
-    // Шапка
     const header = mk('div', 'modal-header');
     const iconWrap = mk('div', 'modal-header-icon');
     iconWrap.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
@@ -428,9 +439,10 @@
     modal.appendChild(header);
 
     let getComment = () => null;
+    const sid = statusId(status);
 
-    // ── 209 ──
-    if (status && status.startsWith('209')) {
+    // ── 209 / 55 ──
+    if (['209', '55'].includes(sid)) {
       const lbl = mk('div', 'section-label'); lbl.textContent = 'Выберите вариант';
       modal.appendChild(lbl);
 
@@ -491,7 +503,7 @@
     }
 
     // ── 207 ──
-    if (status && status.startsWith('207')) {
+    if (['207'].includes(sid)) {
       const lbl = mk('div', 'section-label'); lbl.textContent = 'Выберите вариант';
       modal.appendChild(lbl);
 
@@ -518,8 +530,8 @@
       getComment = () => selectedFull;
     }
 
-    // ── 210 ──
-    if (status && status.startsWith('210')) {
+    // ── 210 / 90 ──
+    if (['210', '90'].includes(sid)) {
       const lbl = mk('div', 'section-label'); lbl.textContent = 'Original Ticket ID';
       modal.appendChild(lbl);
 
@@ -536,8 +548,8 @@
       getComment = () => withPrefix(`Original Ticket — ${inp.value.trim() || '(не указан)'}`);
     }
 
-    // ── 216 ──
-    if (status && status.startsWith('216')) {
+    // ── 216 / 98 ──
+    if (['216', '98'].includes(sid)) {
       const lbl = mk('div', 'section-label'); lbl.textContent = 'Тип';
       modal.appendChild(lbl);
 
@@ -608,8 +620,8 @@
       getComment = () => pvBox.textContent.trim();
     }
 
-    // ── 243 ──
-    if (status && status.startsWith('243')) {
+    // ── 243 / 72 ──
+    if (['243', '72'].includes(sid)) {
       const lbl = mk('div', 'section-label'); lbl.textContent = 'Номер транзакции';
       modal.appendChild(lbl);
 
@@ -624,6 +636,34 @@
 
       modal.appendChild(inp); modal.appendChild(pvWrap);
       getComment = () => withPrefix(COMMENT_243_TEMPLATE(inp.value.trim()));
+    }
+
+    // ── 240 / 97 ──
+    if (['240', '97'].includes(sid)) {
+      const lbl = mk('div', 'section-label'); lbl.textContent = 'Выберите вариант';
+      modal.appendChild(lbl);
+
+      const optsWrap = mk('div', 'comment-options');
+      let selectedFull = null;
+      const { wrap: pvWrap, box: pvBox } = makePreviewWrap('');
+
+      COMMENTS_240.forEach((item) => {
+        const optBtn = mk('button', 'comment-option');
+        const optLabel = mk('div', 'opt-label'); optLabel.textContent = item.label;
+        const optPreview = mk('div', 'opt-preview'); optPreview.textContent = withPrefix(item.full);
+        optBtn.appendChild(optLabel); optBtn.appendChild(optPreview);
+        optBtn.addEventListener('click', () => {
+          optsWrap.querySelectorAll('.comment-option').forEach(o => o.classList.remove('selected'));
+          optBtn.classList.add('selected');
+          selectedFull = withPrefix(item.full);
+          pvBox.textContent = selectedFull;
+        });
+        optsWrap.appendChild(optBtn);
+      });
+
+      modal.appendChild(optsWrap);
+      modal.appendChild(pvWrap);
+      getComment = () => selectedFull;
     }
 
     // Кнопки
@@ -649,7 +689,7 @@
 
   function updateCommentButton() {
     const status = getSelectedStatus();
-    const hasTemplate = status && STATUSES_WITH_COMMENTS.some(s => status.startsWith(s));
+    const hasTemplate = status && statusMatches(status, STATUSES_WITH_COMMENTS_IDS);
 
     let commentGroup = null;
     for (const group of document.querySelectorAll('.input-group')) {
@@ -676,7 +716,6 @@
     });
     wrap.appendChild(btn);
 
-    // Вставляем wrap как отдельный блок ПОСЛЕ .title, ПЕРЕД textarea
     const titleEl = commentGroup.querySelector('.title');
     if (titleEl && titleEl.nextSibling) {
       commentGroup.insertBefore(wrap, titleEl.nextSibling);
@@ -705,15 +744,15 @@
     const modal = mk('div'); modal.id = '__apply-modal';
     overlay.appendChild(modal); document.body.appendChild(overlay);
 
-    const txnMissing = (!txnId || txnId === '') && status && STATUSES_REQUIRE_TXN.includes(status);
-    const txnPresent = txnId && txnId !== '' && status && STATUSES_REQUIRE_TXN.includes(status);
+    const txnMissing = (!txnId || txnId === '') && statusMatches(status, STATUSES_REQUIRE_TXN_IDS);
+    const txnPresent = txnId && txnId !== '' && statusMatches(status, STATUSES_REQUIRE_TXN_IDS);
 
     const h3 = mk('h3'); h3.textContent = 'Подтверждение действия';
     modal.appendChild(h3);
 
     const infoBox = mk('div', 'info-box');
     if (txnPresent) {
-      infoBox.innerHTML = `Отправить в Статус: <strong>${status}</strong> с Transaction ID — <strong>${txnId}</strong>`;
+      infoBox.innerHTML = `Отправить в Статус: <strong>${status}</strong><br>с Transaction ID — <strong>${txnId}</strong>`;
     } else {
       infoBox.innerHTML = `Статус: <strong>${status || '[не выбран]'}</strong>`;
     }
