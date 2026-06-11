@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Google Sheets: Merge/Unmerge Hotkeys
 // @namespace    https://github.com/DzyubanE/
-// @version      1.2
-// @description  Ctrl+E — объединить ячейки, Alt+E — разъединить (Google Sheets)
+// @version      1.3
+// @description  Alt+Q — объединить ячейки, Alt+W — разъединить (Google Sheets)
 // @author       You
 // @match        https://docs.google.com/spreadsheets/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=docs.google.com
@@ -77,16 +77,16 @@
     const tag = document.activeElement && document.activeElement.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
-    // Ctrl+E — объединить
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === 'e') {
+    // Alt+Q — объединить
+    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key === 'q') {
       e.preventDefault();
       e.stopPropagation();
       mergeAll();
       return;
     }
 
-    // Alt+E — разъединить
-    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key === 'e') {
+    // Alt+W — разъединить
+    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key === 'w') {
       e.preventDefault();
       e.stopPropagation();
       unmergeAll();
