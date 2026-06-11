@@ -1,16 +1,20 @@
 // ==UserScript==
 // @name         Google Sheets: Merge/Unmerge Hotkeys
 // @namespace    https://github.com/DzyubanE/
-// @version      1.4
+// @version      1.5
 // @description  Alt+Q — объединить ячейки, Alt+W — разъединить (Google Sheets)
 // @author       You
 // @match        https://docs.google.com/spreadsheets/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=docs.google.com
 // @grant        none
+// @run-at       document-end
 // ==/UserScript==
 
 (function () {
   'use strict';
+
+  window.__mergeScriptLoaded = true;
+  console.log('[MergeScript] loaded ✅');
 
   function clickMenuItem(labelSubstring) {
     const items = document.querySelectorAll('.goog-menuitem');
@@ -36,39 +40,43 @@
   }
 
   function runMergeAction(labelTop, labelSub) {
-    // Закрываем всё открытое
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
     setTimeout(() => {
-      if (!openFormatMenu()) return;
+      if (!openFormatMenu()) {
+        console.log('[MergeScript] Формат не найден');
+        return;
+      }
+      console.log('[MergeScript] Формат открыт, ищем:', labelTop);
 
-      // Ждём появления меню Формат
       setTimeout(() => {
         const items = document.querySelectorAll('.goog-menuitem');
         for (const item of items) {
           if (item.textContent.trim().includes(labelTop)) {
+            console.log('[MergeScript] нашли:', item.textContent.trim());
             item.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
             item.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 
-            // Ждём появления подменю
             setTimeout(() => {
-              clickMenuItem(labelSub);
+              const ok = clickMenuItem(labelSub);
+              console.log('[MergeScript] клик по подменю', labelSub, ok ? '✅' : '❌');
             }, 250);
             return;
           }
         }
+        console.log('[MergeScript] пункт не найден среди', items.length, 'элементов');
       }, 250);
     }, 50);
   }
 
   function mergeAll() {
-    // RU: «Объединить все» / EN: «Merge all»
+    console.log('[MergeScript] mergeAll');
     runMergeAction('Объединить ячейки', 'Объединить все');
     setTimeout(() => runMergeAction('Merge cells', 'Merge all'), 100);
   }
 
   function unmergeAll() {
-    // RU: «Отменить объединение ячеек» / EN: «Unmerge»
+    console.log('[MergeScript] unmergeAll');
     runMergeAction('Объединить ячейки', 'Отменить объединение');
     setTimeout(() => runMergeAction('Merge cells', 'Unmerge'), 100);
   }
