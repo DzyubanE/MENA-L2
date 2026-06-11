@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Google Sheets: Merge/Unmerge Hotkeys
 // @namespace    https://github.com/DzyubanE/
-// @version      1.6
+// @version      1.7
 // @description  Alt+Q — объединить ячейки, Alt+W — разъединить (Google Sheets)
 // @author       You
 // @match        https://docs.google.com/spreadsheets/*
@@ -16,73 +16,53 @@
   window.__mergeScriptLoaded = true;
   console.log('[MergeScript] loaded ✅');
 
-  function clickMenuItem(labelSubstring) {
-    const items = document.querySelectorAll('.goog-menuitem');
-    for (const item of items) {
-      const text = item.textContent.trim();
-      if (text.includes(labelSubstring)) {
-        item.click();
-        return true;
-      }
-    }
-    return false;
+  function simulateClick(el) {
+    el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    el.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true, cancelable: true }));
+    el.dispatchEvent(new MouseEvent('click',     { bubbles: true, cancelable: true }));
+    el.dispatchEvent(new MouseEvent('mouseenter',{ bubbles: true }));
+    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
   }
 
-  function openFormatMenu() {
-    const btns = document.querySelectorAll('#docs-menubar .menu-button');
-    for (const btn of btns) {
-      if (btn.innerText.trim() === 'Формат' || btn.innerText.trim() === 'Format') {
-        btn.click();
-        return true;
-      }
-    }
-    return false;
+  function findMenuItem(substring) {
+    return [...document.querySelectorAll('.goog-menuitem')]
+      .find(i => i.textContent.trim().includes(substring));
   }
 
-  function runMergeAction(labelTop, labelSub) {
+  function runMergeAction(labelSub) {
+    // Закрываем всё открытое
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
     setTimeout(() => {
-      if (!openFormatMenu()) {
-        console.log('[MergeScript] Формат не найден');
-        return;
-      }
-      console.log('[MergeScript] Формат открыт, ищем:', labelTop);
+      // Открываем меню Формат
+      const formatBtn = [...document.querySelectorAll('#docs-menubar .menu-button')]
+        .find(b => b.innerText.trim() === 'Формат' || b.innerText.trim() === 'Format');
+      if (!formatBtn) { console.log('[MergeScript] Формат не найден'); return; }
+      simulateClick(formatBtn);
 
       setTimeout(() => {
-        const items = document.querySelectorAll('.goog-menuitem');
-        for (const item of items) {
-          if (item.textContent.trim().includes(labelTop)) {
-            console.log('[MergeScript] нашли:', item.textContent.trim());
-            item.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-            item.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        // Наводим на «Объединить ячейки»
+        const mergeItem = findMenuItem('Объединить ячейки') || findMenuItem('Merge cells');
+        if (!mergeItem) { console.log('[MergeScript] Объединить ячейки не найден'); return; }
+        console.log('[MergeScript] нашли:', mergeItem.textContent.trim());
+        simulateClick(mergeItem);
 
-            setTimeout(() => {
-              const ok = clickMenuItem(labelSub);
-              console.log('[MergeScript] клик по подменю', labelSub, ok ? '✅' : '❌');
-            }, 600);
-            return;
-          }
-        }
-        console.log('[MergeScript] пункт не найден среди', items.length, 'элементов');
-      }, 600);
+        setTimeout(() => {
+          // Кликаем нужный пункт подменю
+          const subItem = findMenuItem(labelSub);
+          if (!subItem) { console.log('[MergeScript] подменю не найдено:', labelSub); return; }
+          console.log('[MergeScript] клик:', subItem.textContent.trim());
+          simulateClick(subItem);
+        }, 500);
+      }, 500);
     }, 50);
   }
 
-  function mergeAll() {
-    console.log('[MergeScript] mergeAll');
-    runMergeAction('Объединить ячейки', 'Объединить все');
-    setTimeout(() => runMergeAction('Merge cells', 'Merge all'), 100);
-  }
-
-  function unmergeAll() {
-    console.log('[MergeScript] unmergeAll');
-    runMergeAction('Объединить ячейки', 'Отменить объединение');
-    setTimeout(() => runMergeAction('Merge cells', 'Unmerge'), 100);
-  }
+  function mergeAll()   { runMergeAction('Объединить все');         }
+  function unmergeAll() { runMergeAction('Отменить объединение'); }
 
   document.addEventListener('keydown', function (e) {
-    const tag = document.activeElement && document.activeElement.tagName;
+    const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
     // Alt+Q / Alt+Й — объединить
