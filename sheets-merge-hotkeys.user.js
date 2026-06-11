@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Google Sheets: Merge/Unmerge Hotkeys
 // @namespace    https://github.com/DzyubanE/
-// @version      1.5
+// @version      1.6
 // @description  Alt+Q — объединить ячейки, Alt+W — разъединить (Google Sheets)
 // @author       You
 // @match        https://docs.google.com/spreadsheets/*
@@ -60,12 +60,12 @@
             setTimeout(() => {
               const ok = clickMenuItem(labelSub);
               console.log('[MergeScript] клик по подменю', labelSub, ok ? '✅' : '❌');
-            }, 250);
+            }, 600);
             return;
           }
         }
         console.log('[MergeScript] пункт не найден среди', items.length, 'элементов');
-      }, 250);
+      }, 600);
     }, 50);
   }
 
