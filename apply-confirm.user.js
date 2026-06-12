@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Edit Helper Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.0.6
+// @version      1.0.7
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @description  Двойное подтверждение + шаблоны комментариев
@@ -16,10 +16,7 @@
 (function () {
   'use strict';
 
-  // Статусы требующие Transaction ID — матчим по числовому префиксу
   const STATUSES_REQUIRE_TXN_IDS = ['219', '60', '221', '61', '225', '63', '231', '66'];
-
-  // Статусы с шаблонными комментариями — матчим по числовому префиксу
   const STATUSES_WITH_COMMENTS_IDS = ['209', '55', '207', '210', '90', '216', '98', '243', '72', '240', '97'];
 
   const COMMENTS_209 = [
@@ -38,12 +35,13 @@
   const COMMENTS_240 = [
     { label: 'Ожидание ответа из Передачи смены', full: 'waiting for agent' },
     { label: 'Ожидание ответа от старших / передача старшим', full: 'waiting for senior' },
-    { label: 'Передача старшим для создания транзакции', full: 'waiting for NR' }
+    { label: 'Передача старшим для создания транзакции', full: 'waiting for NR' },
+    { label: 'Агент дважды выставляет неверный статус без корректной информации', full: 'Waiting for TA' },
+    { label: 'Не получается изменить субагента в Deposits Recalculation', full: 'Waiting for MN' }
   ];
 
   const COMMENT_243_TEMPLATE = (val) => `Credited to another account - ${val || '(номер транзакции)'}`;
 
-  // Извлечь числовой префикс из строки статуса, например "209 Sent for processing (M)" -> "209"
   function statusId(status) {
     if (!status) return null;
     const m = status.match(/^(\d+)/);
@@ -302,8 +300,7 @@
     #__apply-modal h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; color: #3b4354; }
     #__apply-modal .info-box {
       padding: 9px 12px; background: #f6f7f8; border: 1px solid #dbdfe6;
-      border-radius: 6px; font-size: 12px; color: #4f5b71; margin-bottom: 14px;
-      line-height: 1.6;
+      border-radius: 6px; font-size: 12px; color: #4f5b71; margin-bottom: 14px; line-height: 1.6;
     }
     #__apply-modal .info-box strong { color: #3b4354; }
     #__apply-modal .warn-box {
@@ -420,6 +417,29 @@
     return { wrap, box };
   }
 
+  function makeSimpleOptions(items, modal, pvBox) {
+    const optsWrap = mk('div', 'comment-options');
+    let selectedFull = null;
+
+    items.forEach((item) => {
+      const optBtn = mk('button', 'comment-option');
+      const optLabel = mk('div', 'opt-label'); optLabel.textContent = item.label;
+      const optPreview = mk('div', 'opt-preview'); optPreview.textContent = withPrefix(item.full);
+      optBtn.appendChild(optLabel);
+      optBtn.appendChild(optPreview);
+      optBtn.addEventListener('click', () => {
+        optsWrap.querySelectorAll('.comment-option').forEach(o => o.classList.remove('selected'));
+        optBtn.classList.add('selected');
+        selectedFull = withPrefix(item.full);
+        pvBox.textContent = selectedFull;
+      });
+      optsWrap.appendChild(optBtn);
+    });
+
+    modal.appendChild(optsWrap);
+    return () => selectedFull;
+  }
+
   function showCommentModal(status, textarea) {
     removeCmtModal();
 
@@ -506,28 +526,10 @@
     if (['207'].includes(sid)) {
       const lbl = mk('div', 'section-label'); lbl.textContent = 'Выберите вариант';
       modal.appendChild(lbl);
-
-      const optsWrap = mk('div', 'comment-options');
-      let selectedFull = null;
       const { wrap: pvWrap, box: pvBox } = makePreviewWrap('');
-
-      COMMENTS_207.forEach((item) => {
-        const optBtn = mk('button', 'comment-option');
-        const optLabel = mk('div', 'opt-label'); optLabel.textContent = item.label;
-        const optPreview = mk('div', 'opt-preview'); optPreview.textContent = withPrefix(item.full);
-        optBtn.appendChild(optLabel); optBtn.appendChild(optPreview);
-        optBtn.addEventListener('click', () => {
-          optsWrap.querySelectorAll('.comment-option').forEach(o => o.classList.remove('selected'));
-          optBtn.classList.add('selected');
-          selectedFull = withPrefix(item.full);
-          pvBox.textContent = selectedFull;
-        });
-        optsWrap.appendChild(optBtn);
-      });
-
-      modal.appendChild(optsWrap);
+      const getSelected = makeSimpleOptions(COMMENTS_207, modal, pvBox);
       modal.appendChild(pvWrap);
-      getComment = () => selectedFull;
+      getComment = getSelected;
     }
 
     // ── 210 / 90 ──
@@ -642,28 +644,10 @@
     if (['240', '97'].includes(sid)) {
       const lbl = mk('div', 'section-label'); lbl.textContent = 'Выберите вариант';
       modal.appendChild(lbl);
-
-      const optsWrap = mk('div', 'comment-options');
-      let selectedFull = null;
       const { wrap: pvWrap, box: pvBox } = makePreviewWrap('');
-
-      COMMENTS_240.forEach((item) => {
-        const optBtn = mk('button', 'comment-option');
-        const optLabel = mk('div', 'opt-label'); optLabel.textContent = item.label;
-        const optPreview = mk('div', 'opt-preview'); optPreview.textContent = withPrefix(item.full);
-        optBtn.appendChild(optLabel); optBtn.appendChild(optPreview);
-        optBtn.addEventListener('click', () => {
-          optsWrap.querySelectorAll('.comment-option').forEach(o => o.classList.remove('selected'));
-          optBtn.classList.add('selected');
-          selectedFull = withPrefix(item.full);
-          pvBox.textContent = selectedFull;
-        });
-        optsWrap.appendChild(optBtn);
-      });
-
-      modal.appendChild(optsWrap);
+      const getSelected = makeSimpleOptions(COMMENTS_240, modal, pvBox);
       modal.appendChild(pvWrap);
-      getComment = () => selectedFull;
+      getComment = getSelected;
     }
 
     // Кнопки
@@ -689,7 +673,7 @@
 
   function updateCommentButton() {
     const status = getSelectedStatus();
-    const hasTemplate = status && statusMatches(status, STATUSES_WITH_COMMENTS_IDS);
+    const hasTemplate = statusMatches(status, STATUSES_WITH_COMMENTS_IDS);
 
     let commentGroup = null;
     for (const group of document.querySelectorAll('.input-group')) {
