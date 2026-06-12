@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.1.4
+// @version      1.1.5
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -62,7 +62,7 @@
   const checkIconSm = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`;
 
   let highlightEnabled = true;
-    
+
 // ── Превью файлов при наведении ───────────────────────────────────────
 
 (function initFilePreview() {
@@ -460,6 +460,7 @@
     });
 
   })();
+
   // ── Тумблер ────────────────────────────────────────────────────────────
 
   function ensureToggle() {
@@ -499,7 +500,7 @@
         run();
       } else {
         resetTable(document.querySelector('.table-wrapper'));
-        restoreWallet();
+        runWallet();
       }
     });
 
@@ -522,30 +523,6 @@
     root.querySelectorAll('td a').forEach(a => { a.style.cssText = ''; });
     root.querySelectorAll('mark.b-mark').forEach(m => m.replaceWith(document.createTextNode(m.textContent)));
     root.querySelectorAll('tbody tr td').forEach(td => { td.style.background = ''; });
-  }
-
-  function restoreWallet() {
-    const root = document.querySelector('.table-wrapper');
-    if (!root) return;
-    const headers   = Array.from(root.querySelectorAll('thead th'));
-    const rows      = Array.from(root.querySelectorAll('tbody tr'));
-    const walletIdx = headers.findIndex(h => h.innerText.trim().toLowerCase() === "user's wallet");
-    if (walletIdx === -1) return;
-    const spanText  = new Map();
-    rows.forEach(row => {
-      row.querySelectorAll('td').forEach(td => {
-        const span = td?.querySelector('span');
-        if (span) spanText.set(span, span.innerText);
-      });
-    });
-    rows.forEach(row => {
-      const td   = row.querySelectorAll('td')[walletIdx];
-      const span = td?.querySelector('span');
-      if (!span) return;
-      const plain = spanText.get(span) || span.innerText;
-      const len   = plain.trim().length;
-      if (len > 0) addBadge(td, 'wallet', `${len} символов`, plain);
-    });
   }
 
   // ── Проверка фильтров ──────────────────────────────────────────────────
@@ -576,7 +553,7 @@
     return btn;
   }
 
-  // ── Бейдж ────────────────────────────────────────────────────────────
+  // ── Бейдж ─────────────────────────────────────────────────────────────
 
   function makeBadge(type, label, extra) {
     const C = {
@@ -593,7 +570,6 @@
       b.className = 'b-badge b-suspdup';
       b.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:4px;font-size:10px;font-weight:500;padding:6px 8px;border-radius:10px;background:${C.bg};color:${C.color};border:.5px solid ${C.border};width:100%;box-sizing:border-box;line-height:1.4;`;
 
-      // Заголовок
       const header = document.createElement('div');
       header.style.cssText = 'display:flex;align-items:center;gap:5px;';
       const dot = document.createElement('span');
@@ -604,7 +580,6 @@
       header.appendChild(title);
       b.appendChild(header);
 
-      // Функция создания chip-тикета
       function makeChip(ticket) {
         const chip = document.createElement('button');
         chip.style.cssText = `display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:20px;border:.5px solid rgba(255,255,255,.4);background:rgba(255,255,255,.2);color:#fff;font-size:10px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .15s;`;
@@ -620,12 +595,10 @@
         return chip;
       }
 
-      // Превью — первые 2 тикета
       const previewWrap = document.createElement('div');
       previewWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;';
       extra.preview.forEach(ticket => previewWrap.appendChild(makeChip(ticket)));
 
-      // +N more
       if (extra.rest.length > 0) {
         const restWrap = document.createElement('div');
         restWrap.style.cssText = 'display:none;flex-wrap:wrap;gap:3px;margin-top:2px;';
@@ -684,26 +657,44 @@
   function addBadge(td, type, label, plainText, extra) {
     if (!td || td.querySelector(`.b-${type}`)) return;
     const hdrs   = Array.from(td.closest('table')?.querySelectorAll('thead th') || []);
-    const noCopy = NO_COPY_SUBSTRINGS.some(s => (hdrs[td.cellIndex]?.innerText.trim().toLowerCase() || '').includes(s));
-    ensureWrap(td, plainText, noCopy);
+    const noCopyFlag = NO_COPY_SUBSTRINGS.some(s => (hdrs[td.cellIndex]?.innerText.trim().toLowerCase() || '').includes(s));
+    ensureWrap(td, plainText, noCopyFlag);
     td.querySelector('.b-badges').appendChild(makeBadge(type, label, extra));
+  }
+
+  // ── Wallet (безусловно) ───────────────────────────────────────────────
+
+  function runWallet() {
+    const root = document.querySelector('.table-wrapper');
+    if (!root) return;
+    const headers   = Array.from(root.querySelectorAll('thead th'));
+    const rows      = Array.from(root.querySelectorAll('tbody tr'));
+    const walletIdx = headers.findIndex(h => h.innerText.trim().toLowerCase() === "user's wallet");
+    if (walletIdx === -1) return;
+    rows.forEach(row => {
+      const td   = row.querySelectorAll('td')[walletIdx];
+      const span = td?.querySelector('span');
+      if (!span) return;
+      const plain = span.innerText;
+      const len   = plain.trim().length;
+      if (len > 0) addBadge(td, 'wallet', `${len} символов`, plain);
+    });
   }
 
   // ── run ────────────────────────────────────────────────────────────────
 
   function run() {
     ensureToggle();
+    runWallet();                     // ← всегда, независимо от фильтров
     if (!hasActiveFilters()) return;
 
     const root = document.querySelector('.table-wrapper');
     if (!root) return;
 
     resetTable(root);
+    runWallet();                     // ← повторно после сброса таблицы
 
-    if (!highlightEnabled) {
-      restoreWallet();
-      return;
-    }
+    if (!highlightEnabled) return;
 
     const headers = Array.from(root.querySelectorAll('thead th'));
     const rows    = Array.from(root.querySelectorAll('tbody tr'));
@@ -747,7 +738,7 @@
       return { bg: `hsl(${h},55%,90%)`, text: `hsl(${h},55%,28%)`, border: `hsl(${h},45%,80%)` };
     }
 
-    // ── Шаг 1: plainText ДО изменений ─────────────────────────────────────
+    // ── Шаг 1: plainText ДО изменений ────────────────────────────────────
 
     const spanText = new Map();
     rows.forEach(row => {
@@ -981,20 +972,6 @@
         if (!span || !CLOSED_LIST.has(span.innerText.trim().toLowerCase())) return;
         row.querySelectorAll('td').forEach(cell => { cell.style.background = 'rgba(226,75,74,0.14)'; });
         addBadge(td, 'closed', 'Closed', spanText.get(span) || span.innerText);
-      });
-    }
-
-    // ── WALLET ───────────────────────────────────────────────────────────
-
-    const walletIdx = headers.findIndex(h => h.innerText.trim().toLowerCase() === "user's wallet");
-    if (walletIdx !== -1) {
-      rows.forEach(row => {
-        const td   = row.querySelectorAll('td')[walletIdx];
-        const span = td?.querySelector('span');
-        if (!span) return;
-        const plain = spanText.get(span) || span.innerText;
-        const len   = plain.trim().length;
-        if (len > 0) addBadge(td, 'wallet', `${len} символов`, plain);
       });
     }
 
