@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Limit's Finder Team B BETA
 // @namespace    team-bestie
-// @version      1.0.4
+// @version      1.0.5
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/limits-finder.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/limits-finder.user.js
 // @author       You
@@ -9,6 +9,9 @@
 // @match        https://th-managment.com/en/admin/backoffice/paymentsupport*
 // @match        https://my-managment.com/en/admin/backoffice/paymentsupport*
 // @match        https://managment.io/en/admin/backoffice/paymentsupport*
+// @match        https://th-managment.com/en/admin/backoffice/ExtendedPaymentRequestList*
+// @match        https://my-managment.com/en/admin/backoffice/ExtendedPaymentRequestList*
+// @match        https://managment.io/en/admin/backoffice/ExtendedPaymentRequestList*
 // @icon         https://raw.githubusercontent.com/DzyubanE/MENA-L2/refs/heads/main/limits-finder.png
 // @grant        GM_xmlhttpRequest
 // @connect      doc.office.lan
