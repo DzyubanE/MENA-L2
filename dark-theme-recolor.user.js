@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dark Theme Recolor Team B BETA
 // @namespace    team-bestie
-// @version      3.0.0
+// @version      3.1.0
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/dark-theme-recolor.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/dark-theme-recolor.user.js
 // @description  Перекрашивает встроенную тёмную тему сайта в более тёмную и контрастную
@@ -68,10 +68,18 @@
       color: #1f4a38 !important;
     }
 
-    /* Шапка таблицы — отдельный тон контрастнее общей панели */
+    /* Шапка таблицы — заметно светлее самой светлой полосы зебры,
+       иначе шапка сливается со строками и таблица выглядит без рамок */
     .table-vertical table tr th,
     .table-horizontal table tr th {
-      background-color: #262c35 !important;
+      background-color: #333a44 !important;
+    }
+
+    /* Рамка вокруг самой таблицы — иначе она визуально не отделена от фона */
+    .table-vertical,
+    .table-horizontal {
+      border: 1px solid #3a414b !important;
+      border-radius: 4px !important;
     }
 
     /* Зебра-строки таблиц — захардкожены в CSS сайта, переменными не задеть */
@@ -104,12 +112,19 @@
     .table-vertical table tr,
     .table-vertical table th,
     .table-vertical table td {
-      border-color: #2c333c !important;
+      border-color: #3a414b !important;
     }
 
-    /* Пагинация и close-тег мультиселекта — хардкод в CSS сайта */
+    /* Пагинация — хардкод в CSS сайта. Активную/наведённую страницу нужно
+       перекрашивать отдельно: у сайта эти состояния заданы без !important,
+       и наш !important на базовом классе иначе перебивает их тоже. */
     .column-pagen__item {
       background-color: #232830 !important;
+    }
+    .column-pagen__item:hover,
+    .column-pagen__item.active {
+      background-color: #327680 !important;
+      color: #fff !important;
     }
     .multiselect__short-multiselect-tag--close {
       background: #454d59 !important;
