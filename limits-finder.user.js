@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Limit's Finder Team B BETA
 // @namespace    team-bestie
-// @version      1.0.5
+// @version      1.0.6
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/limits-finder.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/limits-finder.user.js
 // @author       You
@@ -23,6 +23,21 @@
   const CONFLUENCE_PAGE =
     'https://doc.office.lan/spaces/MENA/pages/373073072/%D0%9B%D0%98%D0%9C%D0%98%D0%A2%D0%AB+%D0%A0%D0%A3%D0%A7%D0%9D%D0%AB%D0%95';
 
+  const isDark = window._THEME === 'dark';
+  const P = isDark ? {
+    modalBg: '#1c2128', border: '#30363d', shadow: '0 2px 6px rgba(0,0,0,0.30), 0 8px 20px rgba(0,0,0,0.45)',
+    text: '#c9d1d9', textDim: '#8b949e', panel: '#161b22',
+    navBtnBg: '#1c2128', navBtnHover: '#21262d', navBtnBorderHover: '#3d444d',
+    scrollThumb: '#30363d', scrollThumbHover: '#3d444d',
+    strikedText: '#6e7681', strikedLabel: '#4b5158',
+  } : {
+    modalBg: '#fcfcfd', border: '#dbdfe6', shadow: '0 2px 6px rgba(59,67,84,0.08), 0 8px 20px rgba(59,67,84,0.13)',
+    text: '#3b4354', textDim: '#65738f', panel: '#f6f7f8',
+    navBtnBg: '#fcfcfd', navBtnHover: '#edeef2', navBtnBorderHover: '#bdc3d1',
+    scrollThumb: '#dbdfe6', scrollThumbHover: '#bdc3d1',
+    strikedText: '#9fa8bc', strikedLabel: '#bdc3d1',
+  };
+
   /* ─── Styles ──────────────────────────────────────────────────── */
   const css = `
     #qs-popup {
@@ -30,14 +45,14 @@
       z-index: 999999;
       display: none;
       flex-direction: column;
-      background: #fcfcfd;
-      border: 1px solid #dbdfe6;
+      background: ${P.modalBg};
+      border: 1px solid ${P.border};
       border-radius: 10px;
-      box-shadow: 0 2px 6px rgba(59,67,84,0.08), 0 8px 20px rgba(59,67,84,0.13);
+      box-shadow: ${P.shadow};
       overflow: visible;
       font-family: "Open Sans", Tahoma, Arial, sans-serif;
       font-size: 12px;
-      color: #3b4354;
+      color: ${P.text};
       width: 340px;
       max-height: calc(100vh - 32px);
       pointer-events: auto;
@@ -102,12 +117,12 @@
       align-items: center;
       gap: 8px;
       padding: 14px 14px;
-      color: #65738f;
+      color: ${P.textDim};
       font-size: 11.5px;
     }
     #qs-state svg { width: 15px; height: 15px; flex-shrink: 0; }
     #qs-state.loading { color: #32c2d2; }
-    #qs-state.empty   { color: #9fa8bc; }
+    #qs-state.empty   { color: ${P.textDim}; }
 
     /* Навигация между результатами */
     #qs-nav {
@@ -115,28 +130,28 @@
       align-items: center;
       gap: 6px;
       padding: 6px 10px;
-      background: #f6f7f8;
-      border-bottom: 1px solid #edeef2;
+      background: ${P.panel};
+      border-bottom: 1px solid ${P.border};
       flex-shrink: 0;
     }
     #qs-nav-counter {
       flex: 1;
       font-size: 11px; font-weight: 600;
-      color: #65738f;
+      color: ${P.textDim};
     }
-    #qs-nav-counter b { color: #3b4354; }
+    #qs-nav-counter b { color: ${P.text}; }
     .qs-nav-btn {
       width: 24px; height: 24px;
       border-radius: 5px;
-      border: 1px solid #dbdfe6;
-      background: #fcfcfd;
-      color: #3b4354;
+      border: 1px solid ${P.border};
+      background: ${P.navBtnBg};
+      color: ${P.text};
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       padding: 0;
       transition: background 0.1s, border-color 0.1s;
     }
-    .qs-nav-btn:hover    { background: #edeef2; border-color: #bdc3d1; }
+    .qs-nav-btn:hover    { background: ${P.navBtnHover}; border-color: ${P.navBtnBorderHover}; }
     .qs-nav-btn:disabled { opacity: 0.35; cursor: default; }
     .qs-nav-btn svg { width: 11px; height: 11px; }
 
@@ -153,22 +168,22 @@
     /* Тонкий скроллбар */
     #qs-result::-webkit-scrollbar { width: 4px; }
     #qs-result::-webkit-scrollbar-track { background: transparent; }
-    #qs-result::-webkit-scrollbar-thumb { background: #dbdfe6; border-radius: 4px; }
-    #qs-result::-webkit-scrollbar-thumb:hover { background: #bdc3d1; }
+    #qs-result::-webkit-scrollbar-thumb { background: ${P.scrollThumb}; border-radius: 4px; }
+    #qs-result::-webkit-scrollbar-thumb:hover { background: ${P.scrollThumbHover}; }
     .qs-row {
       display: flex;
-      border-bottom: 1px solid #edeef2;
+      border-bottom: 1px solid ${P.border};
     }
     .qs-row:last-child { border-bottom: none; }
     .qs-col-label {
       width: 110px;
       flex-shrink: 0;
       padding: 7px 10px;
-      background: #f6f7f8;
-      border-right: 1px solid #edeef2;
+      background: ${P.panel};
+      border-right: 1px solid ${P.border};
       font-size: 10px;
       font-weight: 700;
-      color: #65738f;
+      color: ${P.textDim};
       text-transform: uppercase;
       letter-spacing: 0.05em;
       line-height: 1.3;
@@ -180,7 +195,7 @@
       flex: 1;
       padding: 7px 10px;
       font-size: 11.5px;
-      color: #3b4354;
+      color: ${P.text};
       line-height: 1.45;
       word-break: break-word;
       min-width: 0;
@@ -214,10 +229,10 @@
     }
     /* Зачёркнутые строки — серые */
     .qs-row.qs-striked .qs-col-value {
-      color: #9fa8bc;
+      color: ${P.strikedText};
       text-decoration: line-through;
     }
-    .qs-row.qs-striked .qs-col-label { color: #bdc3d1; }
+    .qs-row.qs-striked .qs-col-label { color: ${P.strikedLabel}; }
 
     /* Стрелочка */
     #qs-arrow {
@@ -296,7 +311,7 @@
   const arrowEl = document.createElement('div');
   arrowEl.id = 'qs-arrow';
   arrowEl.innerHTML = `<svg width="12" height="7" viewBox="0 0 12 7">
-    <path id="qs-arrow-path" d="M6 0L12 7H0Z" fill="#fcfcfd"/>
+    <path id="qs-arrow-path" d="M6 0L12 7H0Z" fill="${P.modalBg}"/>
   </svg>`;
   document.body.appendChild(arrowEl);
 
@@ -642,7 +657,7 @@
 
     // Стрелочка
     const ax = Math.min(Math.max(selRect.left + selRect.width / 2 - 6, left + 12), left + pw - 18);
-    document.getElementById('qs-arrow-path')?.setAttribute('fill', below ? '#32c2d2' : '#fcfcfd');
+    document.getElementById('qs-arrow-path')?.setAttribute('fill', below ? '#32c2d2' : P.modalBg);
     const svg = arrowEl.querySelector('svg');
     if (below) {
       arrowEl.style.top  = (top - 7) + 'px';

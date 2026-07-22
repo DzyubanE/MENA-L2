@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.1.8
+// @version      1.1.9
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -30,10 +30,39 @@
   const NO_COPY_SUBSTRINGS      = ['actions', 'ticket history'];
   const FILE_SUBSTRING          = 'file';
 
+  const isDark = window._THEME === 'dark';
+
   if (!document.getElementById('b-copy-style')) {
     const style = document.createElement('style');
     style.id = 'b-copy-style';
-    style.textContent = `
+    style.textContent = isDark ? `
+      .b-wrap { position: relative; }
+      .b-copy-btn {
+        position: absolute; top: 0; right: 0;
+        display: none; align-items: center; justify-content: center;
+        width: 20px; height: 20px; border-radius: 4px;
+        border: .5px solid #45443A; background: #1c1b17; color: #ADAB9F;
+        cursor: pointer; opacity: 0; transition: opacity .15s;
+        user-select: none; z-index: 10; padding: 0;
+      }
+      .b-wrap:hover .b-copy-btn { display: flex; opacity: 1; }
+      .b-copy-btn svg { pointer-events: none; }
+      .b-copy-btn.copied { border-color: #3B6D11; background: #1C2B12; color: #8FD66B; }
+      .b-copy-btn.copied svg path { stroke: #8FD66B; }
+      .b-toggle-bar {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 14px; margin-bottom: 8px;
+        background: #1C2128; border: .5px solid #30363D;
+        border-radius: 8px; font-size: 12px; font-weight: 500;
+        color: #C9D1D9; user-select: none; width: fit-content;
+      }
+      .b-toggle { position: relative; width: 32px; height: 18px; cursor: pointer; flex-shrink: 0; }
+      .b-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+      .b-toggle-track { position: absolute; inset: 0; background: #30363D; border-radius: 20px; transition: background .2s; }
+      .b-toggle input:checked + .b-toggle-track { background: #32c2d2; }
+      .b-toggle-thumb { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: #E6EDF3; border-radius: 50%; transition: transform .2s; pointer-events: none; }
+      .b-toggle input:checked ~ .b-toggle-thumb { transform: translateX(14px); }
+    ` : `
       .b-wrap { position: relative; }
       .b-copy-btn {
         position: absolute; top: 0; right: 0;
@@ -80,10 +109,10 @@
       #b-preview-popup {
         position: fixed;
         z-index: 99999;
-        background: #fff;
-        border: .5px solid #DFE1E6;
+        background: ${isDark ? '#1C2128' : '#fff'};
+        border: .5px solid ${isDark ? '#30363D' : '#DFE1E6'};
         border-radius: 10px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+        box-shadow: 0 8px 24px rgba(0,0,0,${isDark ? '0.45' : '0.18'});
         overflow: hidden;
         pointer-events: none;
         display: none;
@@ -104,7 +133,7 @@
         width: auto;
         height: auto;
         object-fit: contain;
-        background: #F7F8FA;
+        background: ${isDark ? '#0D1117' : '#F7F8FA'};
       }
       .b-preview-actions {
         display: flex;
@@ -141,7 +170,7 @@
       }
       .b-preview-file-name {
         font-size: 12px;
-        color: #42526E;
+        color: ${isDark ? '#C9D1D9' : '#42526E'};
         font-weight: 500;
         word-break: break-all;
         max-width: 300px;
@@ -149,7 +178,7 @@
       .b-preview-loading {
         padding: 20px 24px;
         font-size: 11px;
-        color: #8993A4;
+        color: ${isDark ? '#8B949E' : '#8993A4'};
         text-align: center;
         min-width: 160px;
       }
@@ -562,13 +591,19 @@
   // ── Бейдж ─────────────────────────────────────────────────────────────
 
   function makeBadge(type, label, extra) {
-    const C = {
+    const C = (isDark ? {
+      full:    { dot:'#5CA6E0', bg:'#132A3D', color:'#7FBBEF', border:'#234B67' },
+      part:    { dot:'#EF9F27', bg:'#3A2A0C', color:'#F0BC63', border:'#5C4415' },
+      closed:  { dot:'rgba(255,255,255,.8)', bg:'#E24B4A', color:'#fff', border:'#A32D2D' },
+      wallet:  { dot:'#8B8A80', bg:'#26241D', color:'#ADAB9F', border:'#45443A' },
+      suspdup: { dot:'rgba(255,255,255,.8)', bg:'#7C3AED', color:'#fff', border:'#5B21B6' },
+    } : {
       full:    { dot:'#378ADD', bg:'#E6F1FB', color:'#185FA5', border:'#B5D4F4' },
       part:    { dot:'#EF9F27', bg:'#FAEEDA', color:'#854F0B', border:'#FAC775' },
       closed:  { dot:'rgba(255,255,255,.8)', bg:'#E24B4A', color:'#fff', border:'#A32D2D' },
       wallet:  { dot:'#888780', bg:'#F1EFE8', color:'#5F5E5A', border:'#D3D1C7' },
       suspdup: { dot:'rgba(255,255,255,.8)', bg:'#7C3AED', color:'#fff', border:'#5B21B6' },
-    }[type];
+    })[type];
 
     // ── Suspected Duplicate — особая структура ──────────────────────────
     if (type === 'suspdup' && extra) {
@@ -1005,7 +1040,7 @@
         const td   = row.querySelectorAll('td')[statusIdx];
         const span = td?.querySelector('span');
         if (!span || !CLOSED_LIST.has(span.innerText.trim().toLowerCase())) return;
-        row.querySelectorAll('td').forEach(cell => { cell.style.background = 'rgba(226,75,74,0.14)'; });
+        row.querySelectorAll('td').forEach(cell => { cell.style.background = isDark ? 'rgba(226,75,74,0.22)' : 'rgba(226,75,74,0.14)'; });
         addBadge(td, 'closed', 'Closed', spanText.get(span) || span.innerText);
       });
     }

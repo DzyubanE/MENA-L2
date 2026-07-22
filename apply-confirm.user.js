@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Edit Helper Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.0.8
+// @version      1.0.9
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @description  Двойное подтверждение + шаблоны комментариев
@@ -18,6 +18,31 @@
 
 (function () {
   'use strict';
+
+  const isDark = window._THEME === 'dark';
+  const P = isDark ? {
+    overlay1: 'rgba(1,4,9,0.55)', overlay2: 'rgba(1,4,9,0.65)',
+    modalBg: '#1c2128', border: '#30363d', headerBorder: '#30363d',
+    text: '#e6edf3', textDim: '#8b949e', textMuted: '#adb8c9',
+    input: '#0d1117', panel: '#161b22',
+    optHover: '#0d2a2d', optSelected: '#0d2a2d',
+    radioChecked: '#0d2a2d', radioCheckedText: '#7fbbef',
+    rmHoverBg: '#3a1414', rmHoverBorder: '#6b2626', rmHoverText: '#ea8886',
+    addHoverBg: '#0d2429',
+    backBorder: '#30363d', backBg: '#21262d', backText: '#c9d1d9',
+    warnBg: '#3a2a08', warnBorder: '#a56c00', warnText: '#f0bc63',
+  } : {
+    overlay1: 'rgba(59,67,84,0.45)', overlay2: 'rgba(59,67,84,0.55)',
+    modalBg: '#fcfcfd', border: '#dbdfe6', headerBorder: '#edeef2',
+    text: '#3b4354', textDim: '#9fa8bc', textMuted: '#4f5b71',
+    input: '#fff', panel: '#f6f7f8',
+    optHover: '#f8feff', optSelected: '#edfbfc',
+    radioChecked: '#edfbfc', radioCheckedText: '#2674ab',
+    rmHoverBg: '#fce8e8', rmHoverBorder: '#f5c0c0', rmHoverText: '#ea8886',
+    addHoverBg: '#f8feff',
+    backBorder: '#bdc3d1', backBg: '#edeef2', backText: '#464f61',
+    warnBg: '#fff8ed', warnBorder: '#ffa500', warnText: '#7a4f00',
+  };
 
   const STATUSES_REQUIRE_TXN_IDS = ['219', '60', '221', '61', '225', '63', '231', '66'];
   const STATUSES_WITH_COMMENTS_IDS = ['209', '55', '207', '210', '90', '216', '98', '243', '72', '240', '97'];
@@ -93,19 +118,19 @@
     #__cmt-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(59,67,84,0.45);
+      background: ${P.overlay1};
       z-index: 999999;
       display: flex;
       align-items: center;
       justify-content: center;
       font-family: Inter, system-ui, sans-serif;
       font-size: 12px;
-      color: #535353;
+      color: ${P.text};
     }
     #__cmt-modal {
-      background: #fcfcfd;
+      background: ${P.modalBg};
       border-radius: 10px;
-      border: 1px solid #dbdfe6;
+      border: 1px solid ${P.border};
       padding: 22px 26px;
       max-width: 480px;
       width: 92%;
@@ -120,7 +145,7 @@
       gap: 8px;
       margin-bottom: 16px;
       padding-bottom: 12px;
-      border-bottom: 1px solid #edeef2;
+      border-bottom: 1px solid ${P.headerBorder};
     }
     #__cmt-modal .modal-header-icon {
       width: 30px;
@@ -132,12 +157,12 @@
       justify-content: center;
       flex-shrink: 0;
     }
-    #__cmt-modal h3 { margin: 0; font-size: 13px; font-weight: 600; color: #3b4354; line-height: 1.3; }
-    #__cmt-modal .modal-subtitle { font-size: 11px; color: #9fa8bc; margin-top: 2px; }
+    #__cmt-modal h3 { margin: 0; font-size: 13px; font-weight: 600; color: ${P.text}; line-height: 1.3; }
+    #__cmt-modal .modal-subtitle { font-size: 11px; color: ${P.textDim}; margin-top: 2px; }
     #__cmt-modal .section-label {
       font-size: 10px;
       font-weight: 700;
-      color: #9fa8bc;
+      color: ${P.textDim};
       text-transform: uppercase;
       letter-spacing: 0.06em;
       margin: 14px 0 7px;
@@ -148,22 +173,22 @@
       flex-direction: column;
       gap: 2px;
       padding: 9px 12px;
-      border: 1px solid #dbdfe6;
+      border: 1px solid ${P.border};
       border-radius: 7px;
       cursor: pointer;
-      background: #fff;
+      background: ${P.input};
       text-align: left;
       font-family: Inter, system-ui, sans-serif;
       font-size: 12px;
-      color: #3b4354;
+      color: ${P.text};
       line-height: 1.4;
       width: 100%;
       box-sizing: border-box;
       transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
       position: relative;
     }
-    #__cmt-modal .comment-option:hover { border-color: #32c2d2; background: #f8feff; box-shadow: 0 2px 6px rgba(50,194,210,0.10); }
-    #__cmt-modal .comment-option.selected { border-color: #32c2d2; background: #edfbfc; }
+    #__cmt-modal .comment-option:hover { border-color: #32c2d2; background: ${P.optHover}; box-shadow: 0 2px 6px rgba(50,194,210,0.10); }
+    #__cmt-modal .comment-option.selected { border-color: #32c2d2; background: ${P.optSelected}; }
     #__cmt-modal .comment-option.selected::before {
       content: '';
       position: absolute;
@@ -172,28 +197,28 @@
       background: #32c2d2;
       border-radius: 7px 0 0 7px;
     }
-    #__cmt-modal .opt-label { font-weight: 600; color: #3b4354; font-size: 12px; }
-    #__cmt-modal .opt-preview { color: #9fa8bc; font-size: 11px; margin-top: 3px; line-height: 1.5; font-family: Inter, system-ui, sans-serif; }
+    #__cmt-modal .opt-label { font-weight: 600; color: ${P.text}; font-size: 12px; }
+    #__cmt-modal .opt-preview { color: ${P.textDim}; font-size: 11px; margin-top: 3px; line-height: 1.5; font-family: Inter, system-ui, sans-serif; }
     #__cmt-modal .txn-input-wrap {
       display: none;
       flex-direction: column;
       gap: 4px;
       margin-top: 9px;
       padding-top: 9px;
-      border-top: 1px dashed #dbdfe6;
+      border-top: 1px dashed ${P.border};
     }
     #__cmt-modal .txn-input-wrap.visible { display: flex; }
-    #__cmt-modal .txn-input-wrap label { font-size: 10px; color: #798495; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    #__cmt-modal .txn-input-wrap label { font-size: 10px; color: ${P.textDim}; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
     #__cmt-modal .field-inp {
       width: 100%;
       box-sizing: border-box;
       padding: 6px 10px;
-      border: 1px solid #dbdfe6;
+      border: 1px solid ${P.border};
       border-radius: 6px;
       font-family: Inter, system-ui, sans-serif;
       font-size: 12px;
-      color: #3b4354;
-      background: #fff;
+      color: ${P.text};
+      background: ${P.input};
       outline: none;
     }
     #__cmt-modal .field-inp:focus { border-color: #32c2d2; box-shadow: 0 0 0 2px rgba(50,194,210,0.12); }
@@ -201,23 +226,23 @@
       margin-top: 12px;
       border-radius: 7px;
       overflow: hidden;
-      border: 1px solid #dbdfe6;
+      border: 1px solid ${P.border};
     }
     #__cmt-modal .preview-label {
       padding: 5px 10px;
-      background: #f0f1f4;
+      background: ${P.panel};
       font-size: 10px;
       font-weight: 700;
-      color: #9fa8bc;
+      color: ${P.textDim};
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      border-bottom: 1px solid #dbdfe6;
+      border-bottom: 1px solid ${P.border};
     }
     #__cmt-modal .preview-box {
       padding: 9px 11px;
-      background: #f6f7f8;
+      background: ${P.panel};
       font-size: 12px;
-      color: #3b4354;
+      color: ${P.text};
       line-height: 1.6;
       word-break: break-word;
       white-space: pre-wrap;
@@ -228,7 +253,7 @@
       display: flex;
       gap: 0;
       margin-bottom: 12px;
-      border: 1px solid #dbdfe6;
+      border: 1px solid ${P.border};
       border-radius: 7px;
       overflow: hidden;
     }
@@ -242,45 +267,45 @@
       cursor: pointer;
       font-size: 11px;
       font-weight: 500;
-      color: #798495;
-      background: #f6f7f8;
+      color: ${P.textDim};
+      background: ${P.panel};
       transition: background 0.15s, color 0.15s;
-      border-right: 1px solid #dbdfe6;
+      border-right: 1px solid ${P.border};
     }
     #__cmt-modal .radio-row label:last-child { border-right: none; }
     #__cmt-modal .radio-row input[type=radio] { display: none; }
-    #__cmt-modal .radio-row label:has(input:checked) { background: #edfbfc; color: #2674ab; font-weight: 600; }
+    #__cmt-modal .radio-row label:has(input:checked) { background: ${P.radioChecked}; color: ${P.radioCheckedText}; font-weight: 600; }
     #__cmt-modal .ticket-ids { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
     #__cmt-modal .ticket-id-row { display: flex; gap: 6px; align-items: center; }
     #__cmt-modal .ticket-id-row input {
-      flex: 1; padding: 6px 10px; border: 1px solid #dbdfe6; border-radius: 6px;
-      font-family: Inter, system-ui, sans-serif; font-size: 12px; color: #3b4354;
-      background: #fff; outline: none; box-sizing: border-box;
+      flex: 1; padding: 6px 10px; border: 1px solid ${P.border}; border-radius: 6px;
+      font-family: Inter, system-ui, sans-serif; font-size: 12px; color: ${P.text};
+      background: ${P.input}; outline: none; box-sizing: border-box;
     }
     #__cmt-modal .ticket-id-row input:focus { border-color: #32c2d2; }
     #__cmt-modal .btn-rm {
-      padding: 5px 9px; border: 1px solid #dbdfe6; border-radius: 5px;
-      background: #f6f7f8; color: #9fa8bc; cursor: pointer; font-size: 14px;
+      padding: 5px 9px; border: 1px solid ${P.border}; border-radius: 5px;
+      background: ${P.panel}; color: ${P.textDim}; cursor: pointer; font-size: 14px;
       line-height: 1; font-family: Inter, system-ui, sans-serif; transition: all 0.15s;
     }
-    #__cmt-modal .btn-rm:hover { background: #fce8e8; color: #ea8886; border-color: #f5c0c0; }
+    #__cmt-modal .btn-rm:hover { background: ${P.rmHoverBg}; color: ${P.rmHoverText}; border-color: ${P.rmHoverBorder}; }
     #__cmt-modal .btn-add-ticket {
-      padding: 5px 12px; border: 1px dashed #bdc3d1; border-radius: 6px;
-      background: transparent; color: #9fa8bc; cursor: pointer; font-size: 11px;
+      padding: 5px 12px; border: 1px dashed ${P.backBorder}; border-radius: 6px;
+      background: transparent; color: ${P.textDim}; cursor: pointer; font-size: 11px;
       font-family: Inter, system-ui, sans-serif; margin-bottom: 12px; transition: all 0.15s;
     }
-    #__cmt-modal .btn-add-ticket:hover { border-color: #32c2d2; color: #32c2d2; background: #f8feff; }
+    #__cmt-modal .btn-add-ticket:hover { border-color: #32c2d2; color: #32c2d2; background: ${P.addHoverBg}; }
     #__cmt-modal .txn-approved-wrap { display: none; flex-direction: column; gap: 4px; margin-bottom: 10px; }
     #__cmt-modal .txn-approved-wrap.visible { display: flex; }
-    #__cmt-modal .txn-approved-wrap label { font-size: 10px; color: #798495; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    #__cmt-modal .txn-approved-wrap label { font-size: 10px; color: ${P.textDim}; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
     #__cmt-modal .btn-row {
       display: flex; gap: 8px; justify-content: flex-end;
-      margin-top: 16px; border-top: 1px solid #edeef2; padding-top: 14px;
+      margin-top: 16px; border-top: 1px solid ${P.headerBorder}; padding-top: 14px;
     }
     #__cmt-modal button.btn-back {
       padding: 6px 16px; border-radius: 6px; font-size: 12px;
       font-family: Inter, system-ui, sans-serif; font-weight: 500;
-      cursor: pointer; border: 1px solid #bdc3d1; background: #edeef2; color: #464f61;
+      cursor: pointer; border: 1px solid ${P.backBorder}; background: ${P.backBg}; color: ${P.backText};
     }
     #__cmt-modal button.btn-insert {
       padding: 6px 18px; border-radius: 6px; font-size: 12px;
@@ -292,33 +317,33 @@
     #__cmt-modal button:hover { opacity: 0.85; }
 
     #__apply-overlay {
-      position: fixed; inset: 0; background: rgba(59,67,84,0.55); z-index: 999999;
+      position: fixed; inset: 0; background: ${P.overlay2}; z-index: 999999;
       display: flex; align-items: center; justify-content: center;
-      font-family: Inter, system-ui, sans-serif; font-size: 12px; color: #535353;
+      font-family: Inter, system-ui, sans-serif; font-size: 12px; color: ${P.text};
     }
     #__apply-modal {
-      background: #fcfcfd; border-radius: 10px; border: 1px solid #dbdfe6;
+      background: ${P.modalBg}; border-radius: 10px; border: 1px solid ${P.border};
       padding: 24px 28px; max-width: 400px; width: 92%; box-sizing: border-box;
     }
-    #__apply-modal h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; color: #3b4354; }
+    #__apply-modal h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; color: ${P.text}; }
     #__apply-modal .info-box {
-      padding: 9px 12px; background: #f6f7f8; border: 1px solid #dbdfe6;
-      border-radius: 6px; font-size: 12px; color: #4f5b71; margin-bottom: 14px; line-height: 1.6;
+      padding: 9px 12px; background: ${P.panel}; border: 1px solid ${P.border};
+      border-radius: 6px; font-size: 12px; color: ${P.textMuted}; margin-bottom: 14px; line-height: 1.6;
     }
-    #__apply-modal .info-box strong { color: #3b4354; }
+    #__apply-modal .info-box strong { color: ${P.text}; }
     #__apply-modal .warn-box {
-      padding: 10px 12px; background: #fff8ed; border: 1px solid #ffa500;
-      border-radius: 6px; color: #7a4f00; font-size: 12px; line-height: 1.5; margin-bottom: 14px;
+      padding: 10px 12px; background: ${P.warnBg}; border: 1px solid ${P.warnBorder};
+      border-radius: 6px; color: ${P.warnText}; font-size: 12px; line-height: 1.5; margin-bottom: 14px;
     }
-    #__apply-modal .warn-box strong { color: #7a4f00; }
+    #__apply-modal .warn-box strong { color: ${P.warnText}; }
     #__apply-modal .btn-row {
       display: flex; gap: 8px; justify-content: flex-end;
-      border-top: 1px solid #edeef2; padding-top: 14px; margin-top: 4px;
+      border-top: 1px solid ${P.headerBorder}; padding-top: 14px; margin-top: 4px;
     }
     #__apply-modal button.btn-back {
       padding: 6px 16px; border-radius: 6px; font-size: 12px;
       font-family: Inter, system-ui, sans-serif; font-weight: 500;
-      cursor: pointer; border: 1px solid #bdc3d1; background: #edeef2; color: #464f61;
+      cursor: pointer; border: 1px solid ${P.backBorder}; background: ${P.backBg}; color: ${P.backText};
     }
     #__apply-modal button.btn-confirm {
       padding: 6px 16px; border-radius: 6px; font-size: 12px;
@@ -329,7 +354,7 @@
     #__apply-modal button.btn-force {
       padding: 6px 16px; border-radius: 6px; font-size: 12px;
       font-family: Inter, system-ui, sans-serif; font-weight: 500;
-      cursor: pointer; border: 1px solid #bdc3d1; background: #edeef2; color: #464f61;
+      cursor: pointer; border: 1px solid ${P.backBorder}; background: ${P.backBg}; color: ${P.backText};
     }
     #__apply-modal button:hover { opacity: 0.85; }
   `;
