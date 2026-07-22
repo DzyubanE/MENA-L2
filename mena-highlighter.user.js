@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.1.7
+// @version      1.1.8
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -572,30 +572,45 @@
 
     // ── Suspected Duplicate — особая структура ──────────────────────────
     if (type === 'suspdup' && extra) {
+      const gc = extra.color || C;
       const b = document.createElement('div');
       b.className = 'b-badge b-suspdup';
-      b.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:4px;font-size:10px;font-weight:500;padding:6px 8px;border-radius:10px;background:${C.bg};color:${C.color};border:.5px solid ${C.border};width:100%;box-sizing:border-box;line-height:1.4;`;
+      b.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:4px;font-size:10px;font-weight:500;padding:6px 8px;border-radius:10px;background:${gc.bg};color:${gc.color};border:.5px solid ${gc.border};width:100%;box-sizing:border-box;line-height:1.4;`;
 
       const header = document.createElement('div');
-      header.style.cssText = 'display:flex;align-items:center;gap:5px;';
+      header.style.cssText = 'display:flex;align-items:center;gap:5px;width:100%;';
       const dot = document.createElement('span');
       dot.style.cssText = `display:inline-block;width:6px;height:6px;border-radius:50%;background:${C.dot};flex-shrink:0;`;
       const title = document.createElement('span');
       title.textContent = `Suspected Duplicate ×${extra.count}`;
       header.appendChild(dot);
       header.appendChild(title);
+
+      const copyAllBtn = document.createElement('button');
+      copyAllBtn.style.cssText = `margin-left:auto;display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:20px;border:.5px solid rgba(255,255,255,.5);background:transparent;color:rgba(255,255,255,.9);font-size:9px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;`;
+      copyAllBtn.title = 'Скопировать текущий тикет вместе со всеми дублями';
+      copyAllBtn.textContent = 'Copy all';
+      copyAllBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        const all = [extra.selfTicket, ...extra.others].filter(Boolean);
+        navigator.clipboard.writeText(all.join(', ')).then(() => {
+          copyAllBtn.textContent = 'Copied!';
+          setTimeout(() => { copyAllBtn.textContent = 'Copy all'; }, 1200);
+        });
+      });
+      header.appendChild(copyAllBtn);
       b.appendChild(header);
 
-      function makeChip(ticket) {
+      function makeChip(ticket, isSelf) {
         const chip = document.createElement('button');
-        chip.style.cssText = `display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:20px;border:.5px solid rgba(255,255,255,.4);background:rgba(255,255,255,.2);color:#fff;font-size:10px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .15s;`;
-        chip.title = 'Копировать Ticket ID';
+        chip.style.cssText = `display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:20px;border:.5px solid rgba(255,255,255,${isSelf ? '.6' : '.4'});background:rgba(255,255,255,${isSelf ? '.32' : '.2'});color:#fff;font-size:10px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .15s;`;
+        chip.title = isSelf ? 'Текущий тикет — копировать Ticket ID' : 'Копировать Ticket ID';
         chip.textContent = ticket;
         chip.addEventListener('click', e => {
           e.stopPropagation();
           navigator.clipboard.writeText(ticket).then(() => {
             chip.style.background = 'rgba(255,255,255,.45)';
-            setTimeout(() => { chip.style.background = 'rgba(255,255,255,.2)'; }, 1000);
+            setTimeout(() => { chip.style.background = `rgba(255,255,255,${isSelf ? '.32' : '.2'})`; }, 1000);
           });
         });
         return chip;
@@ -603,7 +618,8 @@
 
       const previewWrap = document.createElement('div');
       previewWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;';
-      extra.preview.forEach(ticket => previewWrap.appendChild(makeChip(ticket)));
+      if (extra.selfTicket) previewWrap.appendChild(makeChip(extra.selfTicket, true));
+      extra.preview.forEach(ticket => previewWrap.appendChild(makeChip(ticket, false)));
 
       if (extra.rest.length > 0) {
         const restWrap = document.createElement('div');
@@ -944,8 +960,17 @@
         dupGroups.get(key).push(idx);
       });
 
-      dupGroups.forEach(indices => {
+      let dupCI = 0;
+      const dupColorMap = new Map();
+      function getDupColor(key) {
+        if (!dupColorMap.has(key)) { const { h, ci } = nextHue(dupCI); dupCI = ci; dupColorMap.set(key, h); }
+        const h = dupColorMap.get(key);
+        return { bg: `hsl(${h},60%,42%)`, color: '#fff', border: `hsl(${h},60%,28%)` };
+      }
+
+      dupGroups.forEach((indices, key) => {
         if (indices.length < 2) return;
+        const color = getDupColor(key);
         indices.forEach(i => {
           const { ticketTd, ticketVal } = rowData[i];
           if (!ticketTd) return;
@@ -956,7 +981,7 @@
           const preview = otherTickets.slice(0, 2);
           const rest    = otherTickets.slice(2);
           const plain   = spanText.get(getSpan(ticketTd)) || getSpan(ticketTd)?.innerText || '';
-          addBadge(ticketTd, 'suspdup', '', plain, { count: indices.length, preview, rest });
+          addBadge(ticketTd, 'suspdup', '', plain, { count: indices.length, preview, rest, others: otherTickets, selfTicket: ticketVal, color });
         });
       });
     }
@@ -968,6 +993,10 @@
       'credited (fraud) (m)', 'approved by agent (m)',
       'credited to another account by agent (m)',
       'adjusted the amount (deposit) (m)',
+      'duplicated ticket', 'credited', 'closed',
+      'credited (fraud)', 'approved by agent',
+      'credited to another account by agent',
+      'adjusted the amount (deposit)',
     ]);
 
     const statusIdx = headers.findIndex(h => h.innerText.trim().toLowerCase() === 'external status');
