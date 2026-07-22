@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dark Theme Recolor Team B BETA
 // @namespace    team-bestie
-// @version      2.0.0
+// @version      2.1.0
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/dark-theme-recolor.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/dark-theme-recolor.user.js
 // @description  Перекрашивает встроенную тёмную тему сайта в более тёмную и контрастную
@@ -9,6 +9,7 @@
 // @match        https://th-managment.com/*
 // @match        https://my-managment.com/*
 // @match        https://managment.io/*
+// @icon         https://raw.githubusercontent.com/DzyubanE/MENA-L2/refs/heads/main/dark-theme-recolor.png
 // @grant        none
 // ==/UserScript==
 
@@ -21,15 +22,18 @@
   style.id = 'b-dark-recolor';
   style.textContent = `
     :root {
-      /* Базовые поверхности */
+      /* Базовые поверхности. Ни фон, ни текст не берутся из крайних #000/#fff —
+         чистый белый на чистом чёрном даёт ореол (halation) и утомляет глаза ночью. */
       --dark-theme-color-1: #0d1117 !important;
       --dark-theme-color-2: #1c2128 !important;
       --dark-theme-color-3: #161b22 !important;
       --dark-theme-color-5: #161b22 !important;
 
-      /* Двойное назначение (фон/иконка + текст-алиас) — компромиссный тон */
-      --dark-theme-color-4: #6e7681 !important;
-      --dark-theme-color-6: #4b525c !important;
+      /* Двойное назначение (фон/иконка + текст-алиас) — компромиссный тон,
+         подобранный так, чтобы одновременно оставаться читаемым текстом
+         и не превращаться в светящуюся рамку на тёмной поверхности. */
+      --dark-theme-color-4: #7b8591 !important;
+      --dark-theme-color-6: #5b6470 !important;
 
       /* Текст */
       --dark-theme-text-color-1: #e6edf3 !important;
@@ -40,6 +44,12 @@
       --popper-theme-background-color: #1c2128 !important;
       --popper-theme-background-color-hover: #262b33 !important;
       --popper-theme-border-color: #30363d !important;
+    }
+
+    /* Тёмно-зелёный статусный текст (#028217) не читается на тёмном фоне —
+       заменяем на цвет, сохраняющий контраст ночью. */
+    :root, .table-vertical, .table-horizontal {
+      --color-success-text: #3fb950 !important;
     }
 
     /* Зебра-строки таблиц — захардкожены в CSS сайта, переменными не задеть */
@@ -72,7 +82,7 @@
     .table-vertical table tr,
     .table-vertical table th,
     .table-vertical table td {
-      border-color: #0d1117 !important;
+      border-color: #21262d !important;
     }
 
     /* Пагинация и close-тег мультиселекта — хардкод в CSS сайта */
