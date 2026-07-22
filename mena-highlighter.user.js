@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.3.0
+// @version      1.3.1
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -561,7 +561,11 @@
       if (cache.has(ticketId)) return cache.get(ticketId);
       const p = fetch('/admin/backoffice/paymentsupporthistory', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/plain, */*',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
         credentials: 'same-origin',
         body: JSON.stringify({ ticketId: Number(ticketId), is_iframe: 1 }),
       })
