@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.1.9
+// @version      1.2.0
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -24,7 +24,8 @@
 
 (function () {
 
-  const SKIP_SUBSTRINGS         = ['refferal', 'ticket id', 'processing date'];
+  const SKIP_SUBSTRINGS         = ['refferal', 'ticket id', 'processing date', 'external status'];
+  const SKIP_EXACT              = ['agent'];
   const FULL_ONLY_SUBSTRINGS    = ['transaction id', 'file', 'amount'];
   const PART_ALLOWED_SUBSTRINGS = ['unique transfer number', 'inside comment'];
   const NO_COPY_SUBSTRINGS      = ['actions', 'ticket history'];
@@ -758,7 +759,7 @@
     if (!rows.length) return;
 
     function headerLabel(i)    { return headers[i]?.innerText.trim().toLowerCase() || ''; }
-    function shouldSkip(td)    { return SKIP_SUBSTRINGS.some(s => headerLabel(td.cellIndex).includes(s)); }
+    function shouldSkip(td)    { const label = headerLabel(td.cellIndex); return SKIP_SUBSTRINGS.some(s => label.includes(s)) || SKIP_EXACT.includes(label); }
     function isFileCol(td)     { return headerLabel(td.cellIndex).includes(FILE_SUBSTRING); }
     function isPartAllowed(td) { return PART_ALLOWED_SUBSTRINGS.some(s => headerLabel(td.cellIndex).includes(s)); }
     function noCopy(td)        { return NO_COPY_SUBSTRINGS.some(s => headerLabel(td.cellIndex).includes(s)); }
