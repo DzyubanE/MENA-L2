@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Limit's Finder Team B BETA
 // @namespace    team-bestie
-// @version      1.0.6
+// @version      1.0.7
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/limits-finder.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/limits-finder.user.js
 // @author       You
@@ -23,7 +23,8 @@
   const CONFLUENCE_PAGE =
     'https://doc.office.lan/spaces/MENA/pages/373073072/%D0%9B%D0%98%D0%9C%D0%98%D0%A2%D0%AB+%D0%A0%D0%A3%D0%A7%D0%9D%D0%AB%D0%95';
 
-  const isDark = window._THEME === 'dark';
+  const pageWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+  const isDark = pageWindow._THEME === 'dark';
   const P = isDark ? {
     modalBg: '#1c2128', border: '#30363d', shadow: '0 2px 6px rgba(0,0,0,0.30), 0 8px 20px rgba(0,0,0,0.45)',
     text: '#c9d1d9', textDim: '#8b949e', panel: '#161b22',
