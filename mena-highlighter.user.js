@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.2.0
+// @version      1.3.0
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -495,6 +495,137 @@
       if (anchor) hidePopup();
     });
 
+  })();
+
+  // ── Предыдущий статус для Closed / Closed (M) ──────────────────────────
+
+  (function initPrevStatusTooltip() {
+    if (document.getElementById('b-prevstatus-style')) return;
+
+    const style = document.createElement('style');
+    style.id = 'b-prevstatus-style';
+    style.textContent = `
+      #b-prevstatus-tt {
+        position: fixed;
+        z-index: 100000;
+        max-width: 260px;
+        background: ${isDark ? '#1C2128' : '#fff'};
+        border: .5px solid ${isDark ? '#30363D' : '#DFE1E6'};
+        border-radius: 8px;
+        padding: 8px 11px;
+        font-size: 11px;
+        line-height: 1.5;
+        color: ${isDark ? '#C9D1D9' : '#42526E'};
+        box-shadow: 0 8px 24px rgba(0,0,0,${isDark ? '.45' : '.18'});
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .12s;
+      }
+      #b-prevstatus-tt.show { opacity: 1; }
+      #b-prevstatus-tt .b-pst-label {
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        color: ${isDark ? '#8B949E' : '#8993A4'};
+        margin-bottom: 3px;
+      }
+      #b-prevstatus-tt .b-pst-value {
+        font-weight: 600;
+        color: ${isDark ? '#E6EDF3' : '#172B4D'};
+      }
+      #b-prevstatus-tt .b-pst-date {
+        color: ${isDark ? '#8B949E' : '#8993A4'};
+        margin-top: 3px;
+        font-size: 10.5px;
+      }
+    `;
+    document.head.appendChild(style);
+
+    const tt = document.createElement('div');
+    tt.id = 'b-prevstatus-tt';
+    document.body.appendChild(tt);
+
+    const PREV_STATUS_TRIGGERS = new Set(['closed (m)', 'closed']);
+    const cache = new Map(); // ticketId -> Promise<{status, date} | null>
+
+    function place(x, y) {
+      const m = 14, tw = tt.offsetWidth || 200, th = tt.offsetHeight || 50;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      tt.style.left = (x + m + tw > vw ? x - tw - m : x + m) + 'px';
+      tt.style.top  = (y + m + th > vh ? y - th - m : y + m) + 'px';
+    }
+
+    function render(html) { tt.innerHTML = html; }
+
+    function fetchHistory(ticketId) {
+      if (cache.has(ticketId)) return cache.get(ticketId);
+      const p = fetch('/admin/backoffice/paymentsupporthistory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ ticketId: Number(ticketId), is_iframe: 1 }),
+      })
+        .then(r => r.json())
+        .then(json => {
+          const list = Array.isArray(json?.data) ? json.data : [];
+          const idx = list.findIndex(r => PREV_STATUS_TRIGGERS.has((r.nameExternalStatus || '').trim().toLowerCase()));
+          if (idx === -1 || idx + 1 >= list.length) return null;
+          const prev = list[idx + 1];
+          return { status: prev.nameExternalStatus || '—', date: prev.dateEdit || '' };
+        })
+        .catch(() => null);
+      cache.set(ticketId, p);
+      return p;
+    }
+
+    let hideTimer     = null;
+    let currentTicket = null;
+
+    document.addEventListener('mouseover', e => {
+      const td = e.target.closest('td');
+      if (!td) return;
+      const table = td.closest('table');
+      const row   = td.closest('tr');
+      if (!table || !row) return;
+
+      const tHeaders  = Array.from(table.querySelectorAll('thead th'));
+      const statusIdx = tHeaders.findIndex(h => h.innerText.trim().toLowerCase() === 'external status');
+      const ticketIdx = tHeaders.findIndex(h => h.innerText.trim().toLowerCase().includes('ticket id'));
+      if (statusIdx === -1 || ticketIdx === -1 || td.cellIndex !== statusIdx) return;
+
+      const statusText = (td.querySelector('span')?.innerText || td.innerText || '').trim().toLowerCase();
+      if (!PREV_STATUS_TRIGGERS.has(statusText)) return;
+
+      const ticketCell = row.querySelectorAll('td')[ticketIdx];
+      const ticketId    = (ticketCell?.querySelector('span')?.innerText || ticketCell?.innerText || '').trim();
+      if (!ticketId) return;
+
+      clearTimeout(hideTimer);
+      currentTicket = ticketId;
+
+      render(`<div class="b-pst-label">Предыдущий статус</div><div class="b-pst-value">Загрузка…</div>`);
+      tt.classList.add('show');
+      place(e.clientX, e.clientY);
+
+      fetchHistory(ticketId).then(result => {
+        if (currentTicket !== ticketId) return;
+        render(
+          result
+            ? `<div class="b-pst-label">Предыдущий статус</div><div class="b-pst-value">${result.status}</div>${result.date ? `<div class="b-pst-date">${result.date}</div>` : ''}`
+            : `<div class="b-pst-label">Предыдущий статус</div><div class="b-pst-value">Не найдено</div>`
+        );
+        place(e.clientX, e.clientY);
+      });
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (tt.classList.contains('show')) place(e.clientX, e.clientY);
+    });
+
+    document.addEventListener('mouseout', e => {
+      if (!e.target.closest('td')) return;
+      hideTimer = setTimeout(() => { tt.classList.remove('show'); currentTicket = null; }, 150);
+    });
   })();
 
   // ── Тумблер ────────────────────────────────────────────────────────────
