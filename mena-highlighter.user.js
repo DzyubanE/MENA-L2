@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.3.1
+// @version      1.3.2
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -1201,6 +1201,12 @@
 
   document.addEventListener('mousedown', e => {
     if (e.target.closest('button.btn.btn-success')) setTimeout(run, 800);
+  });
+
+  // Применение фильтра через Enter в поле (без клика по кнопке Apply)
+  // не порождает mousedown на .btn-success — ловим его отдельно.
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.closest('.filter input')) setTimeout(run, 800);
   });
 
 })();
