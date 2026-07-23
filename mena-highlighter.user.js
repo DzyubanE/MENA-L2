@@ -701,8 +701,8 @@
   function hasActiveFilters() {
     const placeholders = ['User ID', 'Ticket ID', 'Transaction ID', 'Unique transfer number'];
     return placeholders.some(ph => {
-      const input = document.querySelector(`.filter input[placeholder="${ph}"]`);
-      return input && input.value.trim() !== '';
+      const field = document.querySelector(`.filter input[placeholder="${ph}"], .filter textarea[placeholder="${ph}"]`);
+      return field && field.value.trim() !== '';
     });
   }
 
@@ -1201,12 +1201,6 @@
 
   document.addEventListener('mousedown', e => {
     if (e.target.closest('button.btn.btn-success')) setTimeout(run, 800);
-  });
-
-  // Применение фильтра через Enter в поле (без клика по кнопке Apply)
-  // не порождает mousedown на .btn-success — ловим его отдельно.
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && e.target.closest('.filter input')) setTimeout(run, 800);
   });
 
 })();
