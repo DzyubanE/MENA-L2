@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Edit Helper Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.2.0
+// @version      1.3.0
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
-// @description  Двойное подтверждение + шаблоны комментариев + копирование данных тикета
+// @description  Двойное подтверждение + шаблоны комментариев + копирование данных тикета + превью вложений
 // @author       You
 // @match        https://th-managment.com/en/admin/backoffice/paymentsupport
 // @match        https://my-managment.com/en/admin/backoffice/paymentsupport
@@ -1230,6 +1230,825 @@
     e.preventDefault();
     e.stopPropagation();
   }, true);
+
+  // ─── Превью вложений в окне редактирования ────────────────────────────────
+  //
+  // Тот же движок, что в плагине File Preview, но по ссылкам внутри модалки:
+  // сам File Preview работает только по ячейкам таблицы.
+
+  (function initModalFilePreview() {
+    // ------------------------------------------------------------------
+    // НАСТРОЙКИ
+    // ------------------------------------------------------------------
+    const CONFIG = {
+      filePreview: {
+        // Максимальная ширина картинки в попапе (px)
+        maxWidth: 400,
+        // Задержка перед скрытием попапа, чтобы успеть довести до него мышь (мс)
+        hideDelay: 200,
+        // Какие расширения считать картинками (для них доступен полноэкранный режим)
+        imageExts: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'],
+        // Какие расширения считать видео (показывается иконка + имя файла)
+        videoExts: ['mp4', 'webm', 'mov', 'avi'],
+        // Масштабирование в полноэкранном режиме
+        zoom: {
+          // Во сколько раз меняется масштаб за одно деление колеса мыши
+          step: 1.15,
+          // Минимальный масштаб. 1 — картинка, вписанная в экран
+          min: 1,
+          // Предел увеличения
+          max: 8,
+        },
+      },
+      // Подробный лог в консоль (F12 → Console)
+      debug: false,
+    };
+
+    // ------------------------------------------------------------------
+    // ОБЩЕЕ
+    // ------------------------------------------------------------------
+
+    const isDark = window._THEME === 'dark';
+
+    const T = isDark ? {
+      bg: '#1C2128',
+      border: '#30363D',
+      text: '#C9D1D9',
+      textStrong: '#E6EDF3',
+      textDim: '#8B949E',
+      imgBg: '#0D1117',
+      shadow: '0 8px 24px rgba(0,0,0,0.45)',
+    } : {
+      bg: '#fff',
+      border: '#DFE1E6',
+      text: '#42526E',
+      textStrong: '#172B4D',
+      textDim: '#8993A4',
+      imgBg: '#F7F8FA',
+      shadow: '0 8px 24px rgba(0,0,0,0.18)',
+    };
+
+    const ACCENT = '#2ABFCF';
+    const ACCENT_HOVER = '#1fa8b8';
+
+    function log(...args) {
+      if (CONFIG.debug) console.log('[EditHelper]', ...args);
+    }
+
+    function addStyle(id, css) {
+      if (document.getElementById(id)) return false;
+      const el = document.createElement('style');
+      el.id = id;
+      el.textContent = css;
+      document.head.appendChild(el);
+      return true;
+    }
+
+    // Держит элемент в пределах экрана: возвращает координаты левого верхнего угла
+    function clampToViewport(left, top, width, height, margin) {
+      const m = margin === undefined ? 12 : margin;
+      if (left + width > window.innerWidth - m) left = window.innerWidth - width - m;
+      if (left < m) left = m;
+      if (top + height > window.innerHeight - m) top = window.innerHeight - height - m;
+      if (top < m) top = m;
+      return { left, top };
+    }
+
+    // ==================================================================
+    // ПРЕВЬЮ ВЛОЖЕНИЙ ПРИ НАВЕДЕНИИ
+    // ==================================================================
+
+    function initFilePreview() {
+      const CFG = CONFIG.filePreview;
+
+      addStyle('eh-preview-style', `
+        #eh-preview-popup {
+          position: fixed;
+          z-index: 99999;
+          background: ${T.bg};
+          border: .5px solid ${T.border};
+          border-radius: 10px;
+          box-shadow: ${T.shadow};
+          overflow: hidden;
+          pointer-events: none;
+          display: none;
+          opacity: 0;
+          transition: opacity .15s;
+          max-width: ${CFG.maxWidth}px;
+          width: max-content;
+        }
+        #eh-preview-popup.visible {
+          display: block;
+          opacity: 1;
+          pointer-events: auto;
+        }
+        #eh-preview-popup img {
+          display: block;
+          max-width: ${CFG.maxWidth}px;
+          max-height: calc(100vh - 120px);
+          width: auto;
+          height: auto;
+          object-fit: contain;
+          background: ${T.imgBg};
+        }
+        .eh-preview-actions {
+          display: flex;
+          border-bottom: .5px solid rgba(255,255,255,0.2);
+        }
+        .eh-preview-btn {
+          flex: 1;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          padding: 8px 12px;
+          border: none;
+          border-right: .5px solid rgba(255,255,255,0.2);
+          background: ${ACCENT};
+          font-size: 12px;
+          font-weight: 600;
+          color: #fff;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: background .12s;
+          text-decoration: none;
+          letter-spacing: .02em;
+        }
+        .eh-preview-btn:last-child { border-right: none; }
+        .eh-preview-btn:hover { background: ${ACCENT_HOVER}; }
+        .eh-preview-btn svg { flex-shrink: 0; pointer-events: none; }
+        .eh-preview-file-wrap {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 14px 16px;
+        }
+        .eh-preview-file-name {
+          font-size: 12px;
+          color: ${T.text};
+          font-weight: 500;
+          word-break: break-all;
+          max-width: 300px;
+        }
+        .eh-preview-loading {
+          padding: 20px 24px;
+          font-size: 11px;
+          color: ${T.textDim};
+          text-align: center;
+          min-width: 160px;
+        }
+        #eh-lightbox {
+          position: fixed;
+          inset: 0;
+          z-index: 999999;
+          background: rgba(0,0,0,0.88);
+          display: none;
+          align-items: center;
+          justify-content: center;
+          flex-direction: column;
+          gap: 12px;
+        }
+        #eh-lightbox.open { display: flex; }
+        #eh-lightbox-img-wrap {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 16px;
+          width: 100vw;
+          box-sizing: border-box;
+          padding: 0 16px;
+        }
+        /* Сцена обрезает картинку при увеличении. Картинка позиционируется
+           абсолютно и центрируется через transform — так её размер можно
+           задавать скриптом, не ломая раскладку соседних стрелок. */
+        #eh-lightbox-stage {
+          flex: 1 1 auto;
+          max-width: 88vw;
+          height: 76vh;
+          position: relative;
+          overflow: hidden;
+          touch-action: none;
+        }
+        #eh-lightbox img {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          /* Размер задаёт скрипт — см. applyTransform */
+          max-width: none;
+          max-height: none;
+          border-radius: 6px;
+          box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+          display: block;
+          transform-origin: center center;
+          user-select: none;
+          -webkit-user-drag: none;
+        }
+        #eh-lightbox img.zoomed { cursor: grab; }
+        #eh-lightbox img.dragging { cursor: grabbing; }
+        #eh-lightbox-toolbar {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 5px 8px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.10);
+          border: .5px solid rgba(255,255,255,0.22);
+        }
+        .eh-lightbox-tool {
+          width: 32px; height: 32px;
+          border-radius: 50%;
+          background: transparent;
+          border: none;
+          color: #fff;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background .15s;
+          padding: 0;
+        }
+        .eh-lightbox-tool:hover:not(:disabled) { background: rgba(255,255,255,0.20); }
+        .eh-lightbox-tool:disabled { opacity: .3; cursor: default; }
+        .eh-lightbox-sep {
+          width: 1px;
+          height: 18px;
+          background: rgba(255,255,255,0.22);
+          margin: 0 3px;
+        }
+        #eh-lightbox-zoom-label {
+          min-width: 48px;
+          padding: 5px 2px;
+          border: none;
+          border-radius: 6px;
+          background: transparent;
+          color: rgba(255,255,255,0.85);
+          font-family: inherit;
+          font-size: 11px;
+          font-weight: 600;
+          text-align: center;
+          cursor: pointer;
+          transition: background .15s;
+        }
+        #eh-lightbox-zoom-label:hover { background: rgba(255,255,255,0.20); }
+        .eh-lightbox-arrow {
+          width: 40px; height: 40px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.15);
+          border: .5px solid rgba(255,255,255,0.3);
+          color: #fff;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background .15s;
+          flex-shrink: 0;
+        }
+        .eh-lightbox-arrow:hover { background: rgba(255,255,255,0.28); }
+        .eh-lightbox-arrow:disabled { opacity: 0.25; cursor: default; }
+        #eh-lightbox-counter {
+          font-size: 12px;
+          color: rgba(255,255,255,0.6);
+          text-align: center;
+          min-height: 16px;
+        }
+        #eh-lightbox-close {
+          position: absolute;
+          top: 18px; right: 22px;
+          width: 36px; height: 36px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.15);
+          border: .5px solid rgba(255,255,255,0.3);
+          color: #fff;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background .15s;
+          z-index: 1;
+        }
+        #eh-lightbox-close:hover { background: rgba(255,255,255,0.28); }
+      `);
+
+      const ICON_FULLSCREEN = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+      const ICON_NEW_TAB = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
+      const ICON_PDF = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#E24B4A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>`;
+      const ICON_VIDEO = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
+      const ICON_ROTATE_LEFT = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`;
+      const ICON_ROTATE_RIGHT = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`;
+      const ICON_ZOOM_IN = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>`;
+      const ICON_ZOOM_OUT = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>`;
+
+      const popup = document.createElement('div');
+      popup.id = 'eh-preview-popup';
+      document.body.appendChild(popup);
+
+      // ── Полноэкранный просмотр ───────────────────────────────────────
+
+      const lightbox = document.createElement('div');
+      lightbox.id = 'eh-lightbox';
+
+      const lbClose = document.createElement('button');
+      lbClose.id = 'eh-lightbox-close';
+      lbClose.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
+      const lbWrap = document.createElement('div');
+      lbWrap.id = 'eh-lightbox-img-wrap';
+
+      const lbPrev = document.createElement('button');
+      lbPrev.className = 'eh-lightbox-arrow';
+      lbPrev.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`;
+
+      const lbImg = document.createElement('img');
+
+      const lbNext = document.createElement('button');
+      lbNext.className = 'eh-lightbox-arrow';
+      lbNext.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+
+      const lbStage = document.createElement('div');
+      lbStage.id = 'eh-lightbox-stage';
+      lbStage.appendChild(lbImg);
+
+      const lbCounter = document.createElement('div');
+      lbCounter.id = 'eh-lightbox-counter';
+
+      // ── Панель поворота и масштаба ───────────────────────────────────
+
+      const toolbar = document.createElement('div');
+      toolbar.id = 'eh-lightbox-toolbar';
+
+      function makeTool(title, icon) {
+        const b = document.createElement('button');
+        b.className = 'eh-lightbox-tool';
+        b.title = title;
+        b.innerHTML = icon;
+        return b;
+      }
+
+      const btnRotateL = makeTool('Повернуть влево на 90°', ICON_ROTATE_LEFT);
+      const btnRotateR = makeTool('Повернуть вправо на 90°', ICON_ROTATE_RIGHT);
+      const btnZoomOut = makeTool('Уменьшить', ICON_ZOOM_OUT);
+      const btnZoomIn = makeTool('Увеличить', ICON_ZOOM_IN);
+
+      const zoomLabel = document.createElement('button');
+      zoomLabel.id = 'eh-lightbox-zoom-label';
+      zoomLabel.title = 'Сбросить поворот и масштаб';
+      zoomLabel.textContent = '100%';
+
+      const sep = document.createElement('div');
+      sep.className = 'eh-lightbox-sep';
+
+      toolbar.appendChild(btnRotateL);
+      toolbar.appendChild(btnRotateR);
+      toolbar.appendChild(sep);
+      toolbar.appendChild(btnZoomOut);
+      toolbar.appendChild(zoomLabel);
+      toolbar.appendChild(btnZoomIn);
+
+      lbWrap.appendChild(lbPrev);
+      lbWrap.appendChild(lbStage);
+      lbWrap.appendChild(lbNext);
+      lightbox.appendChild(lbClose);
+      lightbox.appendChild(lbWrap);
+      lightbox.appendChild(toolbar);
+      lightbox.appendChild(lbCounter);
+      document.body.appendChild(lightbox);
+
+      let lbUrls = [];
+      let lbIndex = 0;
+
+      // Состояние просмотра текущей картинки
+      let rotation = 0;   // градусы, кратно 90
+      let zoom = 1;       // масштаб, заданный пользователем
+      let panX = 0;       // сдвиг перетаскиванием, в пикселях экрана
+      let panY = 0;
+
+      // Пересчитывает размер и положение картинки.
+      //
+      // Размер задаётся в вёрстке (width/height), а не через transform: scale.
+      // Это принципиально для чёткости: браузер растрирует картинку один раз
+      // в её вёрстанном размере, и scale потом растягивает уже готовый растр,
+      // не обращаясь к оригиналу. Вписанный в экран скриншот 2400px шириной
+      // растрируется, скажем, в 912px — и при увеличении мы видим растянутые
+      // 912px вместо настоящих 2400px. Если же менять именно вёрстанный
+      // размер, браузер каждый раз растрирует заново из полноразмерного
+      // оригинала, и вся детализация файла доходит до экрана.
+      //
+      // Растр крупнее натурального разрешения смысла не имеет — новых деталей
+      // там взяться неоткуда, а память он съедает быстро. Поэтому вёрстанный
+      // размер ограничен оригиналом, а всё, что сверх него, догоняется
+      // через scale.
+      function applyTransform() {
+        const natW = lbImg.naturalWidth;
+        const natH = lbImg.naturalHeight;
+        // Пока новая картинка не загрузилась, размеры относятся к предыдущей
+        if (!natW || !natH || !lbImg.complete) return;
+
+        const stageW = lbStage.clientWidth;
+        const stageH = lbStage.clientHeight;
+        const upright = rotation % 180 === 0;
+
+        // Во сколько раз ужать картинку, чтобы она целиком влезла в сцену
+        // с учётом поворота. Мелкие картинки не растягиваем.
+        const fit = Math.min(
+          1,
+          stageW / (upright ? natW : natH),
+          stageH / (upright ? natH : natW)
+        );
+
+        // Размер, который картинка должна занять на экране
+        const dispW = natW * fit * zoom;
+        const dispH = natH * fit * zoom;
+
+        const layoutW = Math.min(dispW, natW);
+        const layoutH = layoutW * natH / natW;
+        const extra = layoutW > 0 ? dispW / layoutW : 1;
+
+        lbImg.style.width = layoutW + 'px';
+        lbImg.style.height = layoutH + 'px';
+
+        // Габарит на экране с учётом поворота — по нему ограничиваем сдвиг,
+        // чтобы картинку нельзя было утащить за её собственные края
+        const screenW = upright ? dispW : dispH;
+        const screenH = upright ? dispH : dispW;
+        const maxX = Math.max(0, (screenW - stageW) / 2);
+        const maxY = Math.max(0, (screenH - stageH) / 2);
+        panX = Math.min(maxX, Math.max(-maxX, panX));
+        panY = Math.min(maxY, Math.max(-maxY, panY));
+
+        // Порядок важен: -50% центрирует картинку в сцене, затем сдвиг
+        // считается в координатах экрана и не «переворачивается» вместе
+        // с картинкой, и только потом идут поворот и остаточный масштаб.
+        lbImg.style.transform =
+          `translate(-50%, -50%) translate(${Math.round(panX)}px, ${Math.round(panY)}px)`
+          + ` rotate(${rotation}deg) scale(${extra.toFixed(4)})`;
+
+        lbImg.classList.toggle('zoomed', zoom > 1);
+        zoomLabel.textContent = Math.round(zoom * 100) + '%';
+        btnZoomOut.disabled = zoom <= CFG.zoom.min + 1e-6;
+        btnZoomIn.disabled = zoom >= CFG.zoom.max - 1e-6;
+        updateCounter();
+      }
+
+      function resetView() {
+        rotation = 0;
+        zoom = 1;
+        panX = 0;
+        panY = 0;
+        applyTransform();
+      }
+
+      function rotateBy(delta) {
+        rotation = (rotation + delta + 360) % 360;
+        // После поворота картинка перекладывается заново — сдвиг от прошлой
+        // ориентации оказался бы бессмысленным
+        panX = 0;
+        panY = 0;
+        applyTransform();
+      }
+
+      // cx, cy — точка, которая должна остаться на месте, в координатах
+      // относительно центра сцены. Без них масштабируем от центра.
+      function setZoom(next, cx, cy) {
+        const clamped = Math.min(CFG.zoom.max, Math.max(CFG.zoom.min, next));
+        if (Math.abs(clamped - zoom) < 1e-6) return;
+        if (cx !== undefined) {
+          const k = clamped / zoom;
+          panX = cx - k * (cx - panX);
+          panY = cy - k * (cy - panY);
+        }
+        zoom = clamped;
+        applyTransform();
+      }
+
+      function stageCenterOffset(e) {
+        const rect = lbStage.getBoundingClientRect();
+        return {
+          x: e.clientX - (rect.left + rect.width / 2),
+          y: e.clientY - (rect.top + rect.height / 2),
+        };
+      }
+
+      // Показываем разрешение файла: сразу видно, мелкий ли это оригинал,
+      // если картинка выглядит нечёткой при увеличении
+      function updateCounter() {
+        const parts = [];
+        if (lbUrls.length > 1) parts.push(`${lbIndex + 1} / ${lbUrls.length}`);
+        if (lbImg.complete && lbImg.naturalWidth) {
+          parts.push(`${lbImg.naturalWidth}×${lbImg.naturalHeight}`);
+        }
+        lbCounter.textContent = parts.join('  ·  ');
+      }
+
+      function updateLightbox() {
+        lbImg.src = lbUrls[lbIndex];
+        lbPrev.disabled = lbIndex === 0;
+        lbNext.disabled = lbIndex === lbUrls.length - 1;
+        lbPrev.style.visibility = lbUrls.length > 1 ? 'visible' : 'hidden';
+        lbNext.style.visibility = lbUrls.length > 1 ? 'visible' : 'hidden';
+        updateCounter();
+        // Новая картинка — новый лист: поворот и масштаб сбрасываются
+        resetView();
+      }
+
+      function openLightbox(urls, startIndex) {
+        lbUrls = urls;
+        lbIndex = startIndex || 0;
+        updateLightbox();
+        lightbox.classList.add('open');
+      }
+
+      function closeLightbox() {
+        lightbox.classList.remove('open');
+        lbImg.src = '';
+        resetView();
+      }
+
+      // Размер картинки известен только после загрузки — тогда и считаем вписывание
+      lbImg.addEventListener('load', applyTransform);
+      window.addEventListener('resize', () => {
+        if (lightbox.classList.contains('open')) applyTransform();
+      });
+
+      lbPrev.addEventListener('click', e => {
+        e.stopPropagation();
+        if (lbIndex > 0) { lbIndex--; updateLightbox(); }
+      });
+      lbNext.addEventListener('click', e => {
+        e.stopPropagation();
+        if (lbIndex < lbUrls.length - 1) { lbIndex++; updateLightbox(); }
+      });
+      lbClose.addEventListener('click', e => { e.stopPropagation(); closeLightbox(); });
+
+      btnRotateL.addEventListener('click', e => { e.stopPropagation(); rotateBy(-90); });
+      btnRotateR.addEventListener('click', e => { e.stopPropagation(); rotateBy(90); });
+      btnZoomIn.addEventListener('click', e => { e.stopPropagation(); setZoom(zoom * CFG.zoom.step); });
+      btnZoomOut.addEventListener('click', e => { e.stopPropagation(); setZoom(zoom / CFG.zoom.step); });
+      zoomLabel.addEventListener('click', e => { e.stopPropagation(); resetView(); });
+
+      // ── Масштабирование колесом мыши ─────────────────────────────────
+
+      lightbox.addEventListener('wheel', e => {
+        if (!lightbox.classList.contains('open')) return;
+        // Иначе прокрутится страница под лайтбоксом
+        e.preventDefault();
+        const { x, y } = stageCenterOffset(e);
+        setZoom(e.deltaY < 0 ? zoom * CFG.zoom.step : zoom / CFG.zoom.step, x, y);
+      }, { passive: false });
+
+      // ── Перетаскивание увеличенной картинки ──────────────────────────
+
+      let dragging = false;
+      let dragMoved = false;
+      let dragStart = { x: 0, y: 0, panX: 0, panY: 0 };
+
+      lbImg.addEventListener('mousedown', e => {
+        if (zoom <= 1) return;
+        e.preventDefault();
+        dragging = true;
+        dragMoved = false;
+        dragStart = { x: e.clientX, y: e.clientY, panX: panX, panY: panY };
+        lbImg.classList.add('dragging');
+      });
+
+      window.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const dx = e.clientX - dragStart.x;
+        const dy = e.clientY - dragStart.y;
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMoved = true;
+        panX = dragStart.panX + dx;
+        panY = dragStart.panY + dy;
+        applyTransform();
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        lbImg.classList.remove('dragging');
+      });
+
+      lightbox.addEventListener('click', e => {
+        // Если мышь отпустили за пределами картинки после перетаскивания,
+        // клик всплывает до фона — закрывать лайтбокс в этом случае не нужно
+        if (dragMoved) { dragMoved = false; return; }
+        if (e.target === lightbox) closeLightbox();
+      });
+
+      lbImg.addEventListener('dblclick', e => { e.stopPropagation(); resetView(); });
+
+      document.addEventListener('keydown', e => {
+        if (!lightbox.classList.contains('open')) return;
+        if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft' && lbIndex > 0) { lbIndex--; updateLightbox(); }
+        if (e.key === 'ArrowRight' && lbIndex < lbUrls.length - 1) { lbIndex++; updateLightbox(); }
+      });
+
+      // ── Разбор ссылок ────────────────────────────────────────────────
+
+      function getExt(path) {
+        return (path.split('?')[0].split('.').pop() || '').toLowerCase();
+      }
+
+      function getFileName(path) {
+        try {
+          return decodeURIComponent(path.split('?')[0].split('/').pop() || path);
+        } catch (e) {
+          return path.split('?')[0].split('/').pop() || path;
+        }
+      }
+
+      function isImage(path) { return CFG.imageExts.includes(getExt(path)); }
+      function isVideo(path) { return CFG.videoExts.includes(getExt(path)); }
+      function isPdf(path) { return getExt(path) === 'pdf'; }
+      function isPreviewable(path) { return isImage(path) || isPdf(path) || isVideo(path); }
+
+      // Ссылка может вести на вьюер вида /viewer?url=<реальный путь>.
+      // Тип файла определяем по реальному пути, а открываем — исходную ссылку.
+      function resolveFileUrl(anchor) {
+        const href = anchor.getAttribute('href') || '';
+        try {
+          const abs = new URL(href, window.location.origin);
+          const urlParam = abs.searchParams.get('url');
+          if (urlParam) return { previewUrl: href, filePath: decodeURIComponent(urlParam) };
+        } catch (e) { /* относительный или битый href — используем как есть */ }
+        return { previewUrl: href, filePath: href };
+      }
+
+      // Все картинки из того же списка файлов — чтобы листать их в полноэкранном
+      // режиме. В модалке это <ul class="file-preview">, в таблице — ячейка.
+      function getCellImageUrls(anchor) {
+        const group = anchor.closest('ul, td, .input-group');
+        if (!group) return [];
+        return Array.from(group.querySelectorAll('a'))
+          .map(a => resolveFileUrl(a))
+          .filter(({ filePath }) => isImage(filePath))
+          .map(({ previewUrl }) => previewUrl);
+      }
+
+      // ── Сборка попапа ────────────────────────────────────────────────
+
+      function makeActions(anchor, previewUrl, withFullscreen) {
+        const bar = document.createElement('div');
+        bar.className = 'eh-preview-actions';
+
+        if (withFullscreen) {
+          const btnFull = document.createElement('button');
+          btnFull.className = 'eh-preview-btn';
+          btnFull.innerHTML = `${ICON_FULLSCREEN} Fullscreen`;
+          btnFull.addEventListener('click', e => {
+            e.stopPropagation();
+            const urls = getCellImageUrls(anchor);
+            const startIdx = urls.indexOf(previewUrl);
+            openLightbox(urls.length ? urls : [previewUrl], startIdx >= 0 ? startIdx : 0);
+          });
+          bar.appendChild(btnFull);
+        }
+
+        const btnTab = document.createElement('a');
+        btnTab.className = 'eh-preview-btn';
+        btnTab.href = previewUrl;
+        btnTab.target = '_blank';
+        btnTab.rel = 'noopener noreferrer';
+        btnTab.innerHTML = `${ICON_NEW_TAB} Open in new tab`;
+        bar.appendChild(btnTab);
+
+        return bar;
+      }
+
+      function makeFileRow(icon, fileName) {
+        const wrap = document.createElement('div');
+        wrap.className = 'eh-preview-file-wrap';
+        wrap.innerHTML = icon;
+        const name = document.createElement('span');
+        name.className = 'eh-preview-file-name';
+        name.textContent = fileName;
+        wrap.appendChild(name);
+        return wrap;
+      }
+
+      let currentHref = null;
+      let currentAnchor = null;
+      let hideTimer = null;
+      // Счётчик поколений: если мышь ушла на другую ссылку, пока грузилась картинка,
+      // её onload не должен подставить чужое изображение в попап.
+      let loadGeneration = 0;
+
+      function positionPopup() {
+        if (!currentAnchor) return;
+        const rect = currentAnchor.getBoundingClientRect();
+        const popW = popup.offsetWidth || CFG.maxWidth;
+        const popH = popup.offsetHeight || 300;
+
+        // Пробуем справа от ссылки, если не влезает — слева
+        let left = rect.right + 12;
+        if (left + popW > window.innerWidth - 12) left = rect.left - popW - 12;
+
+        const pos = clampToViewport(left, rect.top, popW, popH, 12);
+        popup.style.left = pos.left + 'px';
+        popup.style.top = pos.top + 'px';
+      }
+
+      function buildPopup(anchor) {
+        popup.innerHTML = '';
+        const { previewUrl, filePath } = resolveFileUrl(anchor);
+
+        if (isImage(filePath)) {
+          popup.appendChild(makeActions(anchor, previewUrl, true));
+
+          const loading = document.createElement('div');
+          loading.className = 'eh-preview-loading';
+          loading.textContent = 'Loading...';
+          popup.appendChild(loading);
+
+          const myGeneration = ++loadGeneration;
+          const img = new Image();
+          img.onload = () => {
+            if (myGeneration !== loadGeneration) return;
+            loading.remove();
+            popup.appendChild(img);
+            positionPopup();
+          };
+          img.onerror = () => {
+            if (myGeneration !== loadGeneration) return;
+            loading.textContent = 'Не удалось загрузить файл';
+          };
+          img.src = previewUrl;
+
+        } else if (isPdf(filePath)) {
+          popup.appendChild(makeActions(anchor, previewUrl, false));
+          popup.appendChild(makeFileRow(ICON_PDF, getFileName(filePath)));
+
+        } else if (isVideo(filePath)) {
+          popup.appendChild(makeActions(anchor, previewUrl, false));
+          popup.appendChild(makeFileRow(ICON_VIDEO, getFileName(filePath)));
+        }
+      }
+
+      function showPopup(anchor) {
+        const href = anchor.getAttribute('href') || '';
+        if (!href) return;
+        const { filePath } = resolveFileUrl(anchor);
+        if (!isPreviewable(filePath)) return;
+
+        clearTimeout(hideTimer);
+        currentAnchor = anchor;
+
+        if (href !== currentHref) {
+          currentHref = href;
+          buildPopup(anchor);
+          positionPopup();
+        }
+
+        popup.classList.add('visible');
+      }
+
+      function hidePopup() {
+        hideTimer = setTimeout(() => {
+          popup.classList.remove('visible');
+          loadGeneration++;
+          currentHref = null;
+          currentAnchor = null;
+          setTimeout(() => {
+            if (!popup.classList.contains('visible')) popup.innerHTML = '';
+          }, 150);
+        }, CFG.hideDelay);
+      }
+
+      // Пока мышь на самом попапе — не прячем, иначе до кнопок не дойти
+      popup.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+      popup.addEventListener('mouseleave', hidePopup);
+
+      // Только ссылки внутри модалки: в таблице тем же занимается File Preview,
+      // и два попапа на одной ссылке мешали бы друг другу.
+      function modalAnchor(target) {
+        if (!(target instanceof Element)) return null;
+        const anchor = target.closest('a');
+        if (!anchor || anchor.closest('td')) return null;
+        return anchor.closest('.modal_content') ? anchor : null;
+      }
+
+      document.addEventListener('mouseover', e => {
+        const anchor = modalAnchor(e.target);
+        if (anchor) showPopup(anchor);
+      });
+
+      document.addEventListener('mouseout', e => {
+        const anchor = modalAnchor(e.target);
+        if (anchor) hidePopup();
+      });
+
+      log('Превью вложений включено');
+    }
+
+    // ==================================================================
+    // ЗАПУСК
+    // ==================================================================
+
+    if (document.body) {
+      initFilePreview();
+    } else {
+      document.addEventListener('DOMContentLoaded', initFilePreview, { once: true });
+    }
+  })();
 
   // ─── MutationObserver ─────────────────────────────────────────────────────
 
