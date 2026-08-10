@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Edit Helper Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.1.1
+// @version      1.2.0
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @description  Двойное подтверждение + шаблоны комментариев + копирование данных тикета
@@ -1074,6 +1074,73 @@
     }
   }
 
+  // ─── Автоподстановка статуса ──────────────────────────────────────────────
+
+  // Если Status пустой, при Apply подставляем первый доступный из списка:
+  // в разных тикетах доступен либо 240, либо 97.
+  const AUTO_STATUS_IDS = ['240', '97'];
+
+  function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function multiselectValue(group) {
+    const single = group.querySelector('.multiselect__single');
+    return single ? single.textContent.trim() : '';
+  }
+
+  // В списке статусы подписаны названиями, но начинаются с номера,
+  // поэтому ищем строку, которая начинается с нужного id.
+  function optionMatchesId(text, id) {
+    return new RegExp(`^\\s*${id}(\\D|$)`).test((text || '').trim());
+  }
+
+  async function selectStatusById(group, id) {
+    const ms = group.querySelector('.multiselect');
+    const search = group.querySelector('.multiselect__input');
+    if (!ms || !search || ms.classList.contains('multiselect--disabled')) return null;
+
+    search.focus();
+    ms.dispatchEvent(new Event('focusin', { bubbles: true }));
+    await delay(60);
+
+    // ввод номера отфильтровывает список до нужного статуса
+    search.value = id;
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    await delay(150);
+
+    const option = Array.from(group.querySelectorAll('.multiselect__option'))
+      .find(o => optionMatchesId(o.textContent, id));
+
+    if (option) {
+      ['mousedown', 'mouseup', 'click'].forEach(type => {
+        option.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+      });
+      await delay(150);
+    }
+
+    if (search.value) {
+      search.value = '';
+      search.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    search.blur();
+    ms.dispatchEvent(new Event('focusout', { bubbles: true }));
+    await delay(60);
+
+    const value = multiselectValue(group);
+    return statusMatches(value, [id]) ? value : null;
+  }
+
+  async function autoSelectStatus(sourceEl) {
+    const group = findGroup(ticketModalRoot(sourceEl), 'Status');
+    if (!group || multiselectValue(group)) return null;
+    for (const id of AUTO_STATUS_IDS) {
+      const value = await selectStatusById(group, id);
+      if (value) return value;
+    }
+    return null;
+  }
+
   // ─── Модалка подтверждения Apply ──────────────────────────────────────────
 
   function removeApplyModal() {
@@ -1087,7 +1154,7 @@
     delete btn.dataset.__bypass;
   }
 
-  function showApplyModal(btn, status, txnId) {
+  function showApplyModal(btn, status, txnId, autoStatus) {
     removeApplyModal();
 
     const overlay = mk('div'); overlay.id = '__apply-overlay';
@@ -1107,6 +1174,12 @@
       infoBox.innerHTML = `Статус: <strong>${status || '[не выбран]'}</strong>`;
     }
     modal.appendChild(infoBox);
+
+    if (autoStatus) {
+      const ab = mk('div', 'warn-box');
+      ab.innerHTML = `Статус не был выбран — подставлен <strong>${autoStatus}</strong>. Если нужен другой, нажмите «Назад» и выберите вручную.`;
+      modal.appendChild(ab);
+    }
 
     if (txnMissing) {
       const wb = mk('div', 'warn-box');
@@ -1139,7 +1212,15 @@
     const btn = isTargetApplyButton(e.target);
     if (!btn) return;
     e.preventDefault();
-    showApplyModal(btn, getSelectedStatus(), getTransactionId());
+
+    if (getSelectedStatus()) {
+      showApplyModal(btn, getSelectedStatus(), getTransactionId());
+      return;
+    }
+    // статус не выбран — сначала подставляем свой, потом спрашиваем
+    autoSelectStatus(btn).then(autoStatus => {
+      showApplyModal(btn, getSelectedStatus(), getTransactionId(), autoStatus);
+    });
   }, true);
 
   document.addEventListener('click', (e) => {
