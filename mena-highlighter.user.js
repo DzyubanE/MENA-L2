@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.3.2
+// @version      1.4.0
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -30,6 +30,27 @@
   const PART_ALLOWED_SUBSTRINGS = ['unique transfer number', 'inside comment'];
   const NO_COPY_SUBSTRINGS      = ['actions', 'ticket history'];
   const FILE_SUBSTRING          = 'file';
+
+  // ── Рефералы MENA (Confluence: /spaces/MENA/pages/626964706) ──────────
+  // Числа в скобках можно оставлять — при сравнении они игнорируются.
+  // Чтобы добавить новый реферал, просто допишите строку в список.
+  const KNOWN_REFERRALS = [
+    'WebDefault (1)',
+    '1xCasino (292)',
+    'BizBet (287)',
+    'Melbet (8)',
+    'Afropari (300)',
+    'Rolsbet (317)',
+    '1xir.com (36)',
+    '1xbet22.com (7)',
+    'Onjabet (305)',
+    'SendMePay (367)',
+    'Bizbet Africa (Ar) (365)',
+    '1xbet.tn (213)',
+    'vippari (316)',
+  ];
+
+  const WRONG_REF_COLOR = '#E24B4A';
 
   const isDark = window._THEME === 'dark';
 
@@ -672,6 +693,7 @@
       } else {
         resetTable(document.querySelector('.table-wrapper'));
         runWallet();
+        runReferral();
       }
     });
 
@@ -693,7 +715,8 @@
     root.querySelectorAll('td span').forEach(span => { span.style.cssText = ''; });
     root.querySelectorAll('td a').forEach(a => { a.style.cssText = ''; });
     root.querySelectorAll('mark.b-mark').forEach(m => m.replaceWith(document.createTextNode(m.textContent)));
-    root.querySelectorAll('tbody tr td').forEach(td => { td.style.background = ''; });
+    root.querySelectorAll('tbody tr td').forEach(td => { td.style.background = ''; td.style.borderBottom = ''; });
+    root.querySelectorAll('tbody tr[data-b-wrongref]').forEach(tr => { delete tr.dataset.bWrongref; });
   }
 
   // ── Проверка фильтров ──────────────────────────────────────────────────
@@ -733,12 +756,14 @@
       closed:  { dot:'rgba(255,255,255,.8)', bg:'#E24B4A', color:'#fff', border:'#A32D2D' },
       wallet:  { dot:'#8B8A80', bg:'#26241D', color:'#ADAB9F', border:'#45443A' },
       suspdup: { dot:'rgba(255,255,255,.8)', bg:'#7C3AED', color:'#fff', border:'#5B21B6' },
+      wrongref:{ dot:'rgba(255,255,255,.85)', bg:'#7F1D1D', color:'#FCA5A5', border:'#B91C1C' },
     } : {
       full:    { dot:'#378ADD', bg:'#E6F1FB', color:'#185FA5', border:'#B5D4F4' },
       part:    { dot:'#EF9F27', bg:'#FAEEDA', color:'#854F0B', border:'#FAC775' },
       closed:  { dot:'rgba(255,255,255,.8)', bg:'#E24B4A', color:'#fff', border:'#A32D2D' },
       wallet:  { dot:'#888780', bg:'#F1EFE8', color:'#5F5E5A', border:'#D3D1C7' },
       suspdup: { dot:'rgba(255,255,255,.8)', bg:'#7C3AED', color:'#fff', border:'#5B21B6' },
+      wrongref:{ dot:'rgba(255,255,255,.85)', bg:'#E24B4A', color:'#fff', border:'#A32D2D' },
     })[type];
 
     // ── Suspected Duplicate — особая структура ──────────────────────────
@@ -874,11 +899,80 @@
     });
   }
 
+  // ── Refferal (безусловно) ─────────────────────────────────────────────
+
+  // "1xbet.tn (213)" → "1xbettn": убираем числа в скобках, регистр и всё,
+  // что не буква/цифра — в webmanagement названия приходят без номеров и
+  // с чуть другим написанием.
+  function normReferral(s) {
+    return (s || '')
+      .replace(/\(\s*\d+\s*\)/g, ' ')
+      .toLowerCase()
+      .replace(/[^a-z0-9Ѐ-ӿ]+/g, '');
+  }
+
+  const KNOWN_REFERRALS_NORM = KNOWN_REFERRALS.map(normReferral).filter(Boolean);
+
+  function levenshtein(a, b) {
+    if (a === b) return 0;
+    if (!a.length || !b.length) return Math.max(a.length, b.length);
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i];
+      for (let j = 1; j <= b.length; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      }
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+
+  // Совпадение считаем нестрогим: точное, вхождение в любую сторону
+  // (WebDefault ↔ WebDefault Ar) либо 1–2 опечатки.
+  function isKnownReferral(value) {
+    const v = normReferral(value);
+    if (!v) return true;                                   // пустую ячейку не проверяем
+    return KNOWN_REFERRALS_NORM.some(ref => {
+      if (v === ref) return true;
+      if (ref.length >= 4 && v.includes(ref)) return true;
+      if (v.length   >= 4 && ref.includes(v)) return true;
+      const tolerance = Math.min(v.length, ref.length) >= 6 ? 2 : 1;
+      return levenshtein(v, ref) <= tolerance;
+    });
+  }
+
+  function runReferral() {
+    const root = document.querySelector('.table-wrapper');
+    if (!root) return;
+    const headers = Array.from(root.querySelectorAll('thead th'));
+    const refIdx  = headers.findIndex(h => {
+      const label = h.innerText.trim().toLowerCase();
+      return label.includes('refferal') || label.includes('referral');
+    });
+    if (refIdx === -1) return;
+
+    Array.from(root.querySelectorAll('tbody tr')).forEach(row => {
+      const td = row.querySelectorAll('td')[refIdx];
+      if (!td) return;
+      // после ensureWrap значение лежит в .b-value — берём текст оттуда,
+      // чтобы не прочитать заодно текст собственного бейджа
+      const host  = td.querySelector('.b-value') || td;
+      const span  = host.querySelector('span');
+      const plain = ((span ? span.innerText : host.innerText) || '').trim();
+      if (!plain || isKnownReferral(plain)) return;
+
+      row.dataset.bWrongref = '1';
+      row.querySelectorAll('td').forEach(cell => { cell.style.borderBottom = `2px solid ${WRONG_REF_COLOR}`; });
+      addBadge(td, 'wrongref', 'Wrong referal', plain);
+    });
+  }
+
   // ── run ────────────────────────────────────────────────────────────────
 
   function run() {
     ensureToggle();
     runWallet();                     // ← всегда, независимо от фильтров
+    runReferral();                   // ← всегда, независимо от фильтров
     if (!hasActiveFilters()) return;
 
     const root = document.querySelector('.table-wrapper');
@@ -886,6 +980,7 @@
 
     resetTable(root);
     runWallet();                     // ← повторно после сброса таблицы
+    runReferral();                   // ← повторно после сброса таблицы
 
     if (!highlightEnabled) return;
 
