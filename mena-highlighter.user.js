@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.4.0
+// @version      1.4.1
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -48,6 +48,20 @@
     'Bizbet Africa (Ar) (365)',
     '1xbet.tn (213)',
     'vippari (316)',
+    // вторая таблица (расшаренные рефералы)
+    '1xbet.latam (338)',
+    '1xbet.pa (468)',
+    'in.1xbet.com (71)',
+    'bo.1xbet.com (156)',
+    '1xGames (150)',
+  ];
+
+  // Эти рефералы проверяются строго — только точное совпадение, без
+  // допуска на опечатки и частичное вхождение: названия отличаются
+  // буквально парой символов, и любое послабление их смешает.
+  const STRICT_REFERRALS = [
+    '1xbet22.com (7)',
+    '1xbet.tn (213)',
   ];
 
   const WRONG_REF_COLOR = '#E24B4A';
@@ -912,6 +926,15 @@
   }
 
   const KNOWN_REFERRALS_NORM = KNOWN_REFERRALS.map(normReferral).filter(Boolean);
+  // Строго проверяем и всё, что похоже на домен (есть точка в названии):
+  // 1xbet.tn / 1xbet.pa / in.1xbet.com различаются парой символов, и
+  // допуск на опечатку пропустил бы чужой реферал как свой.
+  const STRICT_REFERRALS_NORM = new Set(
+    STRICT_REFERRALS
+      .concat(KNOWN_REFERRALS.filter(r => r.replace(/\(\s*\d+\s*\)/g, ' ').includes('.')))
+      .map(normReferral)
+      .filter(Boolean)
+  );
 
   function levenshtein(a, b) {
     if (a === b) return 0;
@@ -927,16 +950,19 @@
     return prev[b.length];
   }
 
-  // Совпадение считаем нестрогим: точное, вхождение в любую сторону
-  // (WebDefault ↔ WebDefault Ar) либо 1–2 опечатки.
+  // Совпадение нестрогое: точное, вхождение в любую сторону при близкой
+  // длине (WebDefault ↔ WebDefault Ar) либо 1–2 опечатки. Для рефералов
+  // из STRICT_REFERRALS — только точное совпадение.
   function isKnownReferral(value) {
     const v = normReferral(value);
     if (!v) return true;                                   // пустую ячейку не проверяем
     return KNOWN_REFERRALS_NORM.some(ref => {
       if (v === ref) return true;
-      if (ref.length >= 4 && v.includes(ref)) return true;
-      if (v.length   >= 4 && ref.includes(v)) return true;
-      const tolerance = Math.min(v.length, ref.length) >= 6 ? 2 : 1;
+      if (STRICT_REFERRALS_NORM.has(ref)) return false;
+      const short = v.length <= ref.length ? v : ref;
+      const long  = v.length <= ref.length ? ref : v;
+      if (short.length >= 3 && short.length / long.length >= 0.8 && long.includes(short)) return true;
+      const tolerance = short.length >= 8 ? 2 : 1;
       return levenshtein(v, ref) <= tolerance;
     });
   }
