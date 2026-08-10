@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Edit Helper Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.0.9
+// @version      1.1.0
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
-// @description  Двойное подтверждение + шаблоны комментариев
+// @description  Двойное подтверждение + шаблоны комментариев + копирование данных тикета
 // @author       You
 // @match        https://th-managment.com/en/admin/backoffice/paymentsupport
 // @match        https://my-managment.com/en/admin/backoffice/paymentsupport
@@ -70,6 +70,28 @@
 
   const COMMENT_243_TEMPLATE = (val) => `Credited to another account - ${val || '(номер транзакции)'}`;
 
+  // ─── Копирование данных тикета ────────────────────────────────────────────
+
+  const TICKET_COPY_EMPTY = '—';
+
+  // Варианты комментария в первой строке. choices рисуются переключателями
+  // внутри варианта, template собирает из них итоговый текст.
+  const TICKET_COPY_COMMENTS = [
+    { label: 'Без комментария', template: null },
+    {
+      label: 'Лимит + возврат из Request for a refund',
+      choices: [
+        { key: 'limit',  title: 'Сумма',       options: ['ниже лимита', 'выше лимита'] },
+        { key: 'status', title: 'Вернулся в',  options: ['Received (M)', 'Approved (M)'] },
+      ],
+      template: (c) => `сумма ${c.limit}, уже ранее был в Request for a refund (M), вернулся в ${c.status} уточните, пожалуйста, получал ли агент средства?`,
+    },
+    {
+      label: 'Подозрительный скриншот',
+      template: () => 'уточните, пожалуйста, получал ли агент средства? Скриншот выглядит подозрительно.',
+    },
+  ];
+
   function statusId(status) {
     if (!status) return null;
     const m = status.match(/^(\d+)/);
@@ -88,7 +110,10 @@
 
   const css = `
     .--cmt-trigger-wrap {
-      display: block;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
       width: 100%;
       margin: 8px 0 6px 0;
     }
@@ -114,6 +139,40 @@
       box-shadow: 0 3px 10px rgba(50,194,210,0.40);
     }
     .--cmt-trigger-btn svg { flex-shrink: 0; opacity: 0.9; }
+
+    .--cmt-copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border: 1px solid ${P.backBorder};
+      border-radius: 6px;
+      background: ${P.backBg};
+      color: ${P.backText};
+      font-family: Inter, system-ui, sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: border-color 0.18s, color 0.18s, background 0.18s;
+    }
+    .--cmt-copy-btn:hover { border-color: #32c2d2; color: #32c2d2; }
+    .--cmt-copy-btn svg { flex-shrink: 0; opacity: 0.9; }
+
+    #__cmt-modal .choice-block { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+    #__cmt-modal .choice-block:last-child { margin-bottom: 0; }
+    #__cmt-modal .choice-block > span.choice-title {
+      font-size: 10px; color: ${P.textDim}; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    #__cmt-modal .choice-block .radio-row { margin-bottom: 0; }
+    #__cmt-modal .preview-box.preview-multiline { font-size: 12px; line-height: 1.7; }
+    #__cmt-modal .missing-box {
+      margin-top: 10px; padding: 8px 11px; border-radius: 6px;
+      background: ${P.warnBg}; border: 1px solid ${P.warnBorder};
+      color: ${P.warnText}; font-size: 11px; line-height: 1.5;
+    }
+    #__cmt-modal button.btn-insert.copied { background: #3fb950; box-shadow: none; }
 
     #__cmt-overlay {
       position: fixed;
@@ -697,12 +756,244 @@
     overlay.addEventListener('click', (e) => { if (e.target === overlay) removeCmtModal(); });
   }
 
+  // ─── Данные тикета ────────────────────────────────────────────────────────
+
+  function ticketModalRoot() {
+    return document.querySelector('.modal_content') || document;
+  }
+
+  function groupByTitle(title) {
+    for (const group of ticketModalRoot().querySelectorAll('.input-group')) {
+      const t = group.querySelector('.title');
+      if (t && t.textContent.trim() === title) return group;
+    }
+    return null;
+  }
+
+  function inputValueByTitle(title) {
+    const group = groupByTitle(title);
+    if (!group) return '';
+    const inp = group.querySelector('input.mx-input, input[type="text"]');
+    return inp ? inp.value.trim() : '';
+  }
+
+  function selectValueByTitle(title) {
+    const group = groupByTitle(title);
+    if (!group) return '';
+    const single = group.querySelector('.multiselect__single');
+    return single ? single.textContent.trim() : '';
+  }
+
+  // Шапка тикета: <span class="success-txt"><strong>User ID:</strong> 1765155209</span>
+  function headerValue(label) {
+    const wanted = label.toLowerCase();
+    for (const sp of ticketModalRoot().querySelectorAll('.success-txt')) {
+      const strong = sp.querySelector('strong');
+      if (!strong) continue;
+      if (strong.textContent.trim().replace(/:$/, '').trim().toLowerCase() !== wanted) continue;
+      return sp.textContent.replace(strong.textContent, '').trim();
+    }
+    return '';
+  }
+
+  function collectTicketData() {
+    return {
+      subagent:    selectValueByTitle('Subagent') || headerValue('Subagent'),
+      userId:      headerValue('User ID'),
+      amount:      inputValueByTitle('Amount by receipt'),
+      date:        inputValueByTitle('Payment creation date'),
+      agentWallet: inputValueByTitle('Agent wallet'),
+      userWallet:  inputValueByTitle("User's wallet"),
+    };
+  }
+
+  function buildTicketText(data, comment) {
+    const v = (x) => x || TICKET_COPY_EMPTY;
+    const head = comment ? `${v(data.subagent)} // ${comment}` : v(data.subagent);
+    return [
+      head,
+      `User ID: ${v(data.userId)}`,
+      `Amount: ${v(data.amount)}`,
+      `Time of deposit: ${v(data.date)}`,
+      `Agent wallet: ${v(data.agentWallet)}`,
+      `User Wallet number: ${v(data.userWallet)}`,
+    ].join('\n');
+  }
+
+  function missingFields(data) {
+    return [
+      ['Subagent', data.subagent],
+      ['User ID', data.userId],
+      ['Amount by receipt', data.amount],
+      ['Payment creation date', data.date],
+      ['Agent wallet', data.agentWallet],
+      ["User's wallet", data.userWallet],
+    ].filter(([, value]) => !value).map(([label]) => label);
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(() => copyTextFallback(text));
+    }
+    return Promise.resolve(copyTextFallback(text));
+  }
+
+  function copyTextFallback(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:-1000px;left:-1000px;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (err) { /* браузер запретил — текст остаётся в окне */ }
+    ta.remove();
+  }
+
+  // ─── Модалка копирования данных тикета ────────────────────────────────────
+
+  function showCopyModal() {
+    removeCmtModal();
+
+    const overlay = mk('div'); overlay.id = '__cmt-overlay';
+    const modal = mk('div'); modal.id = '__cmt-modal';
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    const data = collectTicketData();
+
+    const header = mk('div', 'modal-header');
+    const iconWrap = mk('div', 'modal-header-icon');
+    iconWrap.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+    const headerText = mk('div');
+    const h3 = mk('h3'); h3.textContent = 'Данные тикета';
+    const sub = mk('div', 'modal-subtitle');
+    const modalTitle = ticketModalRoot().querySelector('.title');
+    sub.textContent = modalTitle ? modalTitle.textContent.trim() : '';
+    headerText.appendChild(h3); headerText.appendChild(sub);
+    header.appendChild(iconWrap); header.appendChild(headerText);
+    modal.appendChild(header);
+
+    const lbl = mk('div', 'section-label'); lbl.textContent = 'Комментарий';
+    modal.appendChild(lbl);
+
+    const optsWrap = mk('div', 'comment-options');
+    modal.appendChild(optsWrap);
+
+    const { wrap: pvWrap, box: pvBox } = makePreviewWrap('');
+    pvBox.classList.add('preview-multiline');
+    pvWrap.querySelector('.preview-label').textContent = 'Что будет скопировано';
+    modal.appendChild(pvWrap);
+
+    let selectedIdx = 0;
+    const choiceRadios = new Map();   // индекс варианта → { key: [radio, ...] }
+
+    function commentText() {
+      const item = TICKET_COPY_COMMENTS[selectedIdx];
+      if (!item || !item.template) return null;
+      const values = {};
+      (item.choices || []).forEach(ch => {
+        const radios = (choiceRadios.get(selectedIdx) || {})[ch.key] || [];
+        const checked = radios.find(r => r.checked);
+        values[ch.key] = checked ? checked.value : ch.options[0];
+      });
+      return item.template(values);
+    }
+
+    function updatePreview() {
+      pvBox.textContent = buildTicketText(data, commentText());
+    }
+
+    TICKET_COPY_COMMENTS.forEach((item, i) => {
+      const optBtn = mk('button', 'comment-option');
+      const optLabel = mk('div', 'opt-label'); optLabel.textContent = item.label;
+      optBtn.appendChild(optLabel);
+
+      if (item.template) {
+        const optPreview = mk('div', 'opt-preview');
+        const previewValues = {};
+        (item.choices || []).forEach(ch => { previewValues[ch.key] = ch.options[0]; });
+        optPreview.textContent = item.template(previewValues);
+        optBtn.appendChild(optPreview);
+      }
+
+      if (item.choices) {
+        const choicesWrap = mk('div', 'txn-input-wrap');
+        const byKey = {};
+        item.choices.forEach(ch => {
+          const block = mk('div', 'choice-block');
+          const title = mk('span', 'choice-title'); title.textContent = ch.title;
+          const radioRow = mk('div', 'radio-row');
+          byKey[ch.key] = ch.options.map((opt, oi) => {
+            const l = mk('label');
+            const r = mk('input');
+            r.type = 'radio'; r.name = `__tc-${i}-${ch.key}`; r.value = opt;
+            if (oi === 0) r.checked = true;
+            r.addEventListener('change', updatePreview);
+            const sp = mk('span'); sp.textContent = opt;
+            l.appendChild(r); l.appendChild(sp);
+            l.addEventListener('click', e => e.stopPropagation());
+            radioRow.appendChild(l);
+            return r;
+          });
+          block.appendChild(title); block.appendChild(radioRow);
+          choicesWrap.appendChild(block);
+        });
+        choiceRadios.set(i, byKey);
+        optBtn.appendChild(choicesWrap);
+      }
+
+      optBtn.addEventListener('click', () => {
+        optsWrap.querySelectorAll('.comment-option').forEach(o => {
+          o.classList.remove('selected');
+          const cw = o.querySelector('.txn-input-wrap');
+          if (cw) cw.classList.remove('visible');
+        });
+        optBtn.classList.add('selected');
+        const own = optBtn.querySelector('.txn-input-wrap');
+        if (own) own.classList.add('visible');
+        selectedIdx = i;
+        updatePreview();
+      });
+
+      if (i === selectedIdx) optBtn.classList.add('selected');
+      optsWrap.appendChild(optBtn);
+    });
+
+    updatePreview();
+
+    const missing = missingFields(data);
+    if (missing.length) {
+      const box = mk('div', 'missing-box');
+      box.innerHTML = `⚠ Не заполнено: <strong>${missing.join(', ')}</strong>`;
+      modal.appendChild(box);
+    }
+
+    const btnRow = mk('div', 'btn-row');
+    const backBtn = mk('button', 'btn-back'); backBtn.textContent = '← Назад';
+    backBtn.addEventListener('click', removeCmtModal);
+    btnRow.appendChild(backBtn);
+
+    const copyBtn = mk('button', 'btn-insert');
+    const copyBtnHtml = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Копировать`;
+    copyBtn.innerHTML = copyBtnHtml;
+    copyBtn.addEventListener('click', () => {
+      copyText(pvBox.textContent).then(() => {
+        copyBtn.classList.add('copied');
+        copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Скопировано`;
+        setTimeout(() => {
+          copyBtn.classList.remove('copied');
+          copyBtn.innerHTML = copyBtnHtml;
+        }, 1500);
+      });
+    });
+    btnRow.appendChild(copyBtn);
+
+    modal.appendChild(btnRow);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) removeCmtModal(); });
+  }
+
   // ─── Инжект кнопки над textarea ───────────────────────────────────────────
 
   function updateCommentButton() {
-    const status = getSelectedStatus();
-    const hasTemplate = statusMatches(status, STATUSES_WITH_COMMENTS_IDS);
-
     let commentGroup = null;
     for (const group of document.querySelectorAll('.input-group')) {
       const title = group.querySelector('.title');
@@ -712,27 +1003,46 @@
     }
     if (!commentGroup) return;
 
-    const existing = commentGroup.querySelector('.--cmt-trigger-wrap');
-    if (!hasTemplate) { if (existing) existing.remove(); return; }
-    if (existing) return;
-
     const textarea = commentGroup.querySelector('textarea');
     if (!textarea) return;
 
-    const wrap = mk('div', '--cmt-trigger-wrap');
-    const btn = mk('button', '--cmt-trigger-btn');
-    btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Добавить шаблонный комментарий`;
-    btn.addEventListener('click', (e) => {
-      e.preventDefault(); e.stopPropagation();
-      showCommentModal(getSelectedStatus(), textarea);
-    });
-    wrap.appendChild(btn);
+    let wrap = commentGroup.querySelector('.--cmt-trigger-wrap');
+    if (!wrap) {
+      wrap = mk('div', '--cmt-trigger-wrap');
+      const titleEl = commentGroup.querySelector('.title');
+      if (titleEl && titleEl.nextSibling) {
+        commentGroup.insertBefore(wrap, titleEl.nextSibling);
+      } else {
+        commentGroup.insertBefore(wrap, textarea);
+      }
+    }
 
-    const titleEl = commentGroup.querySelector('.title');
-    if (titleEl && titleEl.nextSibling) {
-      commentGroup.insertBefore(wrap, titleEl.nextSibling);
-    } else {
-      commentGroup.insertBefore(wrap, textarea);
+    // Шаблонный комментарий — только для статусов из списка
+    const hasTemplate = statusMatches(getSelectedStatus(), STATUSES_WITH_COMMENTS_IDS);
+    const tplBtn = wrap.querySelector('.--cmt-trigger-btn');
+    if (hasTemplate && !tplBtn) {
+      const btn = mk('button', '--cmt-trigger-btn');
+      btn.type = 'button';
+      btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Добавить шаблонный комментарий`;
+      btn.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        showCommentModal(getSelectedStatus(), textarea);
+      });
+      wrap.insertBefore(btn, wrap.firstChild);
+    } else if (!hasTemplate && tplBtn) {
+      tplBtn.remove();
+    }
+
+    // Копирование данных тикета — доступно всегда
+    if (!wrap.querySelector('.--cmt-copy-btn')) {
+      const copyBtn = mk('button', '--cmt-copy-btn');
+      copyBtn.type = 'button';
+      copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Копировать данные тикета`;
+      copyBtn.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        showCopyModal();
+      });
+      wrap.appendChild(copyBtn);
     }
   }
 
