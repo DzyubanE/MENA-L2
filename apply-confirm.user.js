@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Edit Helper Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.1.0
+// @version      1.1.1
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @description  Двойное подтверждение + шаблоны комментариев + копирование данных тикета
@@ -758,52 +758,78 @@
 
   // ─── Данные тикета ────────────────────────────────────────────────────────
 
-  function ticketModalRoot() {
-    return document.querySelector('.modal_content') || document;
+  // На странице может быть несколько .modal_content (история тикета и т.п.),
+  // поэтому корень берём от самой кнопки, а не первый попавшийся в документе.
+  function ticketModalRoot(el) {
+    return (el && el.closest && el.closest('.modal_content'))
+        || (getCommentTextarea() || {}).closest?.('.modal_content')
+        || document.querySelector('.modal_content')
+        || document;
   }
 
-  function groupByTitle(title) {
-    for (const group of ticketModalRoot().querySelectorAll('.input-group')) {
-      const t = group.querySelector('.title');
-      if (t && t.textContent.trim() === title) return group;
+  // Заголовки приходят с &nbsp;, разным регистром и разными апострофами
+  // (User's wallet / User’s wallet) — сравниваем по нормализованному виду.
+  function normTitle(text) {
+    return (text || '')
+      .replace(/ /g, ' ')
+      .replace(/[’‘`´]/g, "'")
+      .replace(/:\s*$/, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  // Ищем в модалке, а если не нашли — по всему документу: открытая
+  // форма редактирования всё равно одна.
+  function findGroup(root, title) {
+    const wanted = normTitle(title);
+    const scopes = root === document ? [document] : [root, document];
+    for (const scope of scopes) {
+      for (const group of scope.querySelectorAll('.input-group')) {
+        const t = group.querySelector('.title');
+        if (t && normTitle(t.textContent) === wanted) return group;
+      }
     }
     return null;
   }
 
-  function inputValueByTitle(title) {
-    const group = groupByTitle(title);
+  function inputValueByTitle(root, title) {
+    const group = findGroup(root, title);
     if (!group) return '';
-    const inp = group.querySelector('input.mx-input, input[type="text"]');
+    const inp = group.querySelector('input.mx-input, input[type="text"]:not(.multiselect__input)');
     return inp ? inp.value.trim() : '';
   }
 
-  function selectValueByTitle(title) {
-    const group = groupByTitle(title);
+  function selectValueByTitle(root, title) {
+    const group = findGroup(root, title);
     if (!group) return '';
     const single = group.querySelector('.multiselect__single');
     return single ? single.textContent.trim() : '';
   }
 
   // Шапка тикета: <span class="success-txt"><strong>User ID:</strong> 1765155209</span>
-  function headerValue(label) {
-    const wanted = label.toLowerCase();
-    for (const sp of ticketModalRoot().querySelectorAll('.success-txt')) {
-      const strong = sp.querySelector('strong');
-      if (!strong) continue;
-      if (strong.textContent.trim().replace(/:$/, '').trim().toLowerCase() !== wanted) continue;
-      return sp.textContent.replace(strong.textContent, '').trim();
+  function headerValue(root, label) {
+    const wanted = normTitle(label);
+    const scopes = root === document ? [document] : [root, document];
+    for (const scope of scopes) {
+      for (const sp of scope.querySelectorAll('.success-txt')) {
+        const strong = sp.querySelector('strong');
+        if (!strong || normTitle(strong.textContent) !== wanted) continue;
+        const value = sp.textContent.replace(strong.textContent, '').trim();
+        if (value) return value;
+      }
     }
     return '';
   }
 
-  function collectTicketData() {
+  function collectTicketData(root) {
     return {
-      subagent:    selectValueByTitle('Subagent') || headerValue('Subagent'),
-      userId:      headerValue('User ID'),
-      amount:      inputValueByTitle('Amount by receipt'),
-      date:        inputValueByTitle('Payment creation date'),
-      agentWallet: inputValueByTitle('Agent wallet'),
-      userWallet:  inputValueByTitle("User's wallet"),
+      subagent:    selectValueByTitle(root, 'Subagent') || headerValue(root, 'Subagent'),
+      userId:      headerValue(root, 'User ID') || inputValueByTitle(root, 'User ID'),
+      amount:      inputValueByTitle(root, 'Amount by receipt'),
+      date:        inputValueByTitle(root, 'Payment creation date'),
+      agentWallet: inputValueByTitle(root, 'Agent wallet'),
+      userWallet:  inputValueByTitle(root, "User's wallet"),
     };
   }
 
@@ -850,7 +876,10 @@
 
   // ─── Модалка копирования данных тикета ────────────────────────────────────
 
-  function showCopyModal() {
+  function showCopyModal(sourceEl) {
+    const root = ticketModalRoot(sourceEl);
+    const data = collectTicketData(root);
+
     removeCmtModal();
 
     const overlay = mk('div'); overlay.id = '__cmt-overlay';
@@ -858,15 +887,14 @@
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 
-    const data = collectTicketData();
-
     const header = mk('div', 'modal-header');
     const iconWrap = mk('div', 'modal-header-icon');
     iconWrap.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
     const headerText = mk('div');
     const h3 = mk('h3'); h3.textContent = 'Данные тикета';
     const sub = mk('div', 'modal-subtitle');
-    const modalTitle = ticketModalRoot().querySelector('.title');
+    const modalTitle = Array.from(root.querySelectorAll('.title'))
+      .find(t => t.textContent.trim().startsWith('Change ticket'));
     sub.textContent = modalTitle ? modalTitle.textContent.trim() : '';
     headerText.appendChild(h3); headerText.appendChild(sub);
     header.appendChild(iconWrap); header.appendChild(headerText);
@@ -1040,7 +1068,7 @@
       copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Копировать данные тикета`;
       copyBtn.addEventListener('click', (e) => {
         e.preventDefault(); e.stopPropagation();
-        showCopyModal();
+        showCopyModal(copyBtn);
       });
       wrap.appendChild(copyBtn);
     }
