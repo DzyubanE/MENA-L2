@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Edit Helper Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.2.0
+// @version      1.3.0
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/apply-confirm.user.js
-// @description  Двойное подтверждение + шаблоны комментариев + копирование данных тикета
+// @description  Двойное подтверждение + шаблоны комментариев + копирование данных тикета + автозакрытие окон об успехе
 // @author       You
 // @match        https://th-managment.com/en/admin/backoffice/paymentsupport
 // @match        https://my-managment.com/en/admin/backoffice/paymentsupport
@@ -1230,6 +1230,49 @@
     e.preventDefault();
     e.stopPropagation();
   }, true);
+
+  // ─── Автозакрытие swal2-окон об успехе ────────────────────────────────────
+  //
+  // Закрываем только окна вида «успех + OK», где кроме кнопки OK ничего нет:
+  // всё остальное (ошибки, подтверждения с отменой) требует решения оператора
+  // и трогать его нельзя.
+
+  (function initAutoCloseSwal() {
+    // Часть текстов набрана кириллицей — «ОК» из русской раскладки визуально
+    // не отличается от латинского «OK», но не совпал бы при сравнении
+    function normalize(text) {
+      return text
+        .replace(/О/g, 'O')
+        .replace(/о/g, 'o')
+        .replace(/К/g, 'K')
+        .replace(/к/g, 'k');
+    }
+
+    const observer = new MutationObserver(() => {
+      const popup = document.querySelector('.swal2-popup');
+      if (!popup) return;
+
+      const isSuccess = popup.classList.contains('swal2-icon-success');
+
+      const cancelBtn = popup.querySelector('.swal2-cancel');
+      const hasCancel = cancelBtn && cancelBtn.style.display !== 'none';
+
+      const contentEl = popup.querySelector('.swal2-html-container');
+      const contentText = contentEl ? normalize(contentEl.textContent.trim()) : '';
+      const hasOkContent = /^ok!?$/i.test(contentText);
+
+      const confirmBtn = popup.querySelector('.swal2-confirm');
+      const confirmText = confirmBtn ? normalize(confirmBtn.textContent.trim()) : '';
+      const hasOkButton = /^ok$/i.test(confirmText);
+
+      if (isSuccess && !hasCancel && hasOkContent && hasOkButton) {
+        confirmBtn.click();
+        console.log('[AutoClose] Закрыл попап: содержимое "%s", кнопка "%s"', contentText, confirmText);
+      }
+    });
+
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  })();
 
   // ─── MutationObserver ─────────────────────────────────────────────────────
 
