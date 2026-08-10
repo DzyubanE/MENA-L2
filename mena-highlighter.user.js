@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Duplicate Highligher Team B BETA
 // @namespace    http://tampermonkey.net/
-// @version      1.4.1
+// @version      1.4.2
 // @updateURL    https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @downloadURL  https://github.com/DzyubanE/MENA-L2/raw/refs/heads/main/mena-highlighter.user.js
 // @description  Подсветка дублей, бейджи, кнопки копирования
@@ -63,6 +63,9 @@
     '1xbet22.com (7)',
     '1xbet.tn (213)',
   ];
+
+  // Единственный допустимый департамент — всё остальное подсвечиваем.
+  const ALLOWED_DEPARTMENT = 'MENA 1x';
 
   const WRONG_REF_COLOR = '#E24B4A';
 
@@ -771,6 +774,7 @@
       wallet:  { dot:'#8B8A80', bg:'#26241D', color:'#ADAB9F', border:'#45443A' },
       suspdup: { dot:'rgba(255,255,255,.8)', bg:'#7C3AED', color:'#fff', border:'#5B21B6' },
       wrongref:{ dot:'rgba(255,255,255,.85)', bg:'#7F1D1D', color:'#FCA5A5', border:'#B91C1C' },
+      wrongdept:{ dot:'rgba(255,255,255,.85)', bg:'#7F1D1D', color:'#FCA5A5', border:'#B91C1C' },
     } : {
       full:    { dot:'#378ADD', bg:'#E6F1FB', color:'#185FA5', border:'#B5D4F4' },
       part:    { dot:'#EF9F27', bg:'#FAEEDA', color:'#854F0B', border:'#FAC775' },
@@ -778,6 +782,7 @@
       wallet:  { dot:'#888780', bg:'#F1EFE8', color:'#5F5E5A', border:'#D3D1C7' },
       suspdup: { dot:'rgba(255,255,255,.8)', bg:'#7C3AED', color:'#fff', border:'#5B21B6' },
       wrongref:{ dot:'rgba(255,255,255,.85)', bg:'#E24B4A', color:'#fff', border:'#A32D2D' },
+      wrongdept:{ dot:'rgba(255,255,255,.85)', bg:'#E24B4A', color:'#fff', border:'#A32D2D' },
     })[type];
 
     // ── Suspected Duplicate — особая структура ──────────────────────────
@@ -936,6 +941,8 @@
       .filter(Boolean)
   );
 
+  const ALLOWED_DEPARTMENT_NORM = normReferral(ALLOWED_DEPARTMENT);
+
   function levenshtein(a, b) {
     if (a === b) return 0;
     if (!a.length || !b.length) return Math.max(a.length, b.length);
@@ -967,30 +974,53 @@
     });
   }
 
-  function runReferral() {
+  // Department: допустимо ровно одно значение, поэтому сравниваем точно —
+  // "MENA Leads 1X" и прочие вариации должны попадать под подсветку.
+  function isKnownDepartment(value) {
+    return normReferral(value) === ALLOWED_DEPARTMENT_NORM;
+  }
+
+  // после ensureWrap значение лежит в .b-value — берём текст оттуда,
+  // чтобы не прочитать заодно текст собственного бейджа
+  function cellPlainText(td) {
+    const host = td.querySelector('.b-value') || td;
+    const span = host.querySelector('span');
+    return ((span ? span.innerText : host.innerText) || '').trim();
+  }
+
+  function markWrongRow(row) {
+    row.dataset.bWrongref = '1';
+    row.querySelectorAll('td').forEach(cell => { cell.style.borderBottom = `2px solid ${WRONG_REF_COLOR}`; });
+  }
+
+  // Общая проверка колонки по заголовку: не подошло значение — красное
+  // подчёркивание строки и бейдж в самой ячейке.
+  function checkColumn(matchHeader, isValid, badgeType, badgeLabel) {
     const root = document.querySelector('.table-wrapper');
     if (!root) return;
     const headers = Array.from(root.querySelectorAll('thead th'));
-    const refIdx  = headers.findIndex(h => {
-      const label = h.innerText.trim().toLowerCase();
-      return label.includes('refferal') || label.includes('referral');
-    });
-    if (refIdx === -1) return;
+    const idx     = headers.findIndex(h => matchHeader(h.innerText.trim().toLowerCase()));
+    if (idx === -1) return;
 
     Array.from(root.querySelectorAll('tbody tr')).forEach(row => {
-      const td = row.querySelectorAll('td')[refIdx];
+      const td = row.querySelectorAll('td')[idx];
       if (!td) return;
-      // после ensureWrap значение лежит в .b-value — берём текст оттуда,
-      // чтобы не прочитать заодно текст собственного бейджа
-      const host  = td.querySelector('.b-value') || td;
-      const span  = host.querySelector('span');
-      const plain = ((span ? span.innerText : host.innerText) || '').trim();
-      if (!plain || isKnownReferral(plain)) return;
-
-      row.dataset.bWrongref = '1';
-      row.querySelectorAll('td').forEach(cell => { cell.style.borderBottom = `2px solid ${WRONG_REF_COLOR}`; });
-      addBadge(td, 'wrongref', 'Wrong referal', plain);
+      const plain = cellPlainText(td);
+      if (!plain || isValid(plain)) return;      // пустую ячейку не проверяем
+      markWrongRow(row);
+      addBadge(td, badgeType, badgeLabel, plain);
     });
+  }
+
+  function runReferral() {
+    checkColumn(
+      label => label.includes('refferal') || label.includes('referral'),
+      isKnownReferral, 'wrongref', 'Wrong referal'
+    );
+    checkColumn(
+      label => label === 'department',
+      isKnownDepartment, 'wrongdept', 'Wrong Department'
+    );
   }
 
   // ── run ────────────────────────────────────────────────────────────────
